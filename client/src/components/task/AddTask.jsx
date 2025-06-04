@@ -25,6 +25,8 @@ const ISSUE_CATEGORIES = [
   "Examinations",
   "Hostel",
   "Library",
+  "Ragging",
+  "women safety",
   "Others",
 ];
 
@@ -57,6 +59,7 @@ const AddComplaint = ({ open, setOpen }) => {
         );
       }
     );
+    console.log(link)
   };
 
   const {
@@ -65,7 +68,7 @@ const AddComplaint = ({ open, setOpen }) => {
     formState: { errors },
   } = useForm();
 
-  const [issueCategory, setIssueCategory] = useState(ISSUE_CATEGORIES[0]);
+  const [issueCategory, setIssueCategory] = useState([]);
   const [assets, setAssets] = useState([]);
   const [uploading, setUploading] = useState(false);
   const { user } = useSelector((state) => state.auth);
@@ -78,7 +81,7 @@ const AddComplaint = ({ open, setOpen }) => {
       issue_category: issueCategory,
       complaint_proof: link, // Assuming backend handles file uploads separately
     };
-  
+    console.log(link)
     try {
       const response = await fetch("http://localhost:5000/complaints/addComplaint", {
         method: "POST",

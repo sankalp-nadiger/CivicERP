@@ -541,7 +541,7 @@ export const summary = {
     {
       _id: "65c317360fd860f958baa08e",
       name: "Principal",
-      title: "UX Designer",
+      title: "rincipal",
       role: "Admin",
       isActive: true,
       createdAt: "2024-02-07T05:37:58.862Z",
@@ -549,7 +549,7 @@ export const summary = {
     {
       _id: "65c30b96e639681a13def0b5",
       name: "Boys Hostel Warden",
-      title: "Product Manager",
+      title: "warden",
       role: "Admin",
       isActive: true,
       createdAt: "2024-02-07T04:48:22.519Z",
@@ -557,7 +557,7 @@ export const summary = {
     {
       _id: "65c202d4aa62f32ffd1303cc",
       name: "Girls Hostel Warden",
-      title: "Administrator",
+      title: "warden",
       role: "Admin",
       createdAt: "2024-02-06T09:58:44.794Z",
       isActive: false,
@@ -565,7 +565,7 @@ export const summary = {
     {
       _id: "65c202d4aa62f32ffd1303cc",
       name: "Student Welfare Office",
-      title: "Administrator",
+      title: "officer",
       role: "Admin",
       createdAt: "2024-02-06T09:58:44.794Z",
       isActive: true,

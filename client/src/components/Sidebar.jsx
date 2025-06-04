@@ -40,7 +40,7 @@ const linkData = [
   },
   {
     label: "Report genration",
-    link: "todo/todo",
+    link: "/report",
     icon: <MdOutlinePendingActions />,
   },
   {
@@ -65,7 +65,7 @@ const Sidebar = () => {
 
   // Filter links based on user role
   const sidebarLinks =
-    user?.role === "Admin"
+    user?.role !== "User"
       ? linkData // Admin sees all links
       : linkData.filter(
           (link) => link.label === "Dashboard" || link.label === "Complaints"

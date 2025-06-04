@@ -84,7 +84,7 @@ const ComplaintDetails = () => {
       const fetchComplaints = async () => {
         console.log(user)
         try {
-          const response = await fetch('http://localhost:5000/admin/', {
+          const response = await fetch('http://localhost:5000/admin/all', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ user }),
@@ -104,7 +104,7 @@ const ComplaintDetails = () => {
         fetchComplaints();
       }
     }, [user]);
-  const complaint = complaints.find((c) => c._id === id);
+  const complaint = complaints.find((c) => c._id == id);
 
   const priority = getPriority(complaint?.priority_factor);
   const isAdmin = true; // Replace with actual role check
@@ -219,6 +219,7 @@ const Activities = ({ activity, id, isAdmin }) => {
   const [selectedActivity, setSelectedActivity] = useState("");
   const [comment, setComment] = useState("");
   const [activities, setActivities] = useState([]);
+  const { user } = useSelector((state) => state.auth);
   const isLoading = false;
 
 
@@ -365,42 +366,50 @@ const Activities = ({ activity, id, isAdmin }) => {
       </div>
 
       <div className='w-full md:w-1/3'>
-        <h4 className='text-gray-600 font-semibold text-lg mb-5'>
-          Add Activity
-        </h4>
-        <div className='w-full flex flex-wrap gap-5'>
-          {act_types.map((item, index) => (
-            <div key={item} className='flex gap-2 items-center'>
-              <input
-                type='checkbox'
-                className='w-4 h-4'
-                checked={selectedActivity === item}
-                onChange={() => setSelectedActivity(item)}
-              />
-              <p>{item}</p>
-            </div>
-          ))}
-          { (
-            <textarea
-              rows={5}
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              placeholder='Type your comment...'
-              className='bg-white w-full mt-10 border border-gray-300 outline-none p-4 rounded-md focus:ring-2 ring-blue-500'
+  <h4 className='text-gray-600 font-semibold text-lg mb-5'>
+    {user.role !== 'User' ? 'Add Activity' : 'Activity'}
+  </h4>
+
+  <div className='w-full flex flex-wrap gap-5'>
+    {user.role !== 'User' ? (
+      <>
+        {act_types.map((item) => (
+          <div key={item} className='flex gap-2 items-center'>
+            <input
+              type='checkbox'
+              className='w-4 h-4'
+              checked={selectedActivity === item}
+              onChange={() => setSelectedActivity(item)}
             />
-          )}
-          {isLoading ? (
-            <Loading />
-          ) : (
-            <Button
-              type='button'
-              label='Add Status'
-              onClick={handleAddActivity}
-              className='bg-blue-600 text-white rounded'
-            />
-          )}
-        </div>
-      </div>
+            <p>{item}</p>
+          </div>
+        ))}
+
+        <textarea
+          rows={5}
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          placeholder='Type your comment...'
+          className='bg-white w-full mt-10 border border-gray-300 outline-none p-4 rounded-md focus:ring-2 ring-blue-500'
+        />
+
+        {isLoading ? (
+          <Loading />
+        ) : (
+          <Button
+            type='button'
+            label='Add Status'
+            onClick={handleAddActivity}
+            className='bg-blue-600 text-white rounded'
+          />
+        )}
+      </>
+    ) : (
+      <p className='text-gray-500 italic'>You don’t have permission to add activities.</p>
+    )}
+  </div>
+  </div>
+
     </div>
   );
 };

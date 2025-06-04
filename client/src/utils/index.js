@@ -54,8 +54,8 @@ export const BGS = [
   "bg-green-600",
 ];
 export const getPriority = (priority_factor) => {
-  if (priority_factor >= 0 && priority_factor <= 40) return "low";
-  if (priority_factor >= 41 && priority_factor < 70) return "medium";
-  if (priority_factor >= 70) return "high";
+  if (priority_factor >= 0 && priority_factor <= 6) return "low";
+  if (priority_factor >= 7 && priority_factor <=15) return "medium";
+  if (priority_factor > 16) return "high";
   return "low"; // Default to low if not in range
 };

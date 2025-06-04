@@ -125,11 +125,11 @@ const Dashboard = () => {
     const fetchComplaints = async () => {
       let endpoint = 'http://localhost:5000/complaints/myComplaint';
       let endpoint2 = 'http://localhost:5000/complaints/myComplaint';
-    if (user.role === 'Admin') {
+    if (user.role === 'User') {
     endpoint = 'http://localhost:5000/admin';
      endpoint2 ='http://localhost:5000/Admin/mystats'
     }
-    if (user.role === 'Admin' && user.username=="estate_officer") {
+    if (user.role !== 'User' && user.username=="estate_officer") {
       endpoint = 'http://localhost:5000/admin/category2';
        endpoint2 ='http://localhost:5000/Admin/mystats'
       }
@@ -154,13 +154,13 @@ const Dashboard = () => {
     const fetchComplaintStats = async () => {
       let endpoint = 'http://localhost:5000/complaints/myComplaint';
       let endpoint2 = 'http://localhost:5000/complaints/myComplaint';
-    if (user.role === 'Admin') {
+    if (user.role !== 'User') {
     endpoint = 'http://localhost:5000/admin';
      endpoint2 ='http://localhost:5000/Admin/mystats'
     }
 
     
-    if (user.role === 'Admin' && user.username=="estate_officer") {
+    if (user.role !== 'User') {
       endpoint = 'http://localhost:5000/admin/category2';
        endpoint2 ='http://localhost:5000/Admin/mystats'
       }
@@ -209,8 +209,8 @@ const Dashboard = () => {
   return (
     <div className='h-full py-4'>
       <div className='grid grid-cols-1 md:grid-cols-4 gap-5'>{stats.map((stat, index) => <Card key={index} {...stat} />)}</div>
-      {user?.role === "Admin" && <div className='w-full bg-white my-16 p-4 rounded shadow-sm'><h4 className='text-xl text-gray-600 font-semibold'>Chart by Priority</h4><Chart /></div>}
-      <div className='w-full flex flex-col md:flex-row gap-4 2xl:gap-10 py-8'><ComplaintTable complaints={complaints} />{user?.role === "Admin" && <UserTable users={summary.users} />}</div>
+      {user?.role !== "User" && <div className='w-full bg-white my-16 p-4 rounded shadow-sm'><h4 className='text-xl text-gray-600 font-semibold'>Chart by Priority</h4><Chart /></div>}
+      <div className='w-full flex flex-col md:flex-row gap-4 2xl:gap-10 py-8'><ComplaintTable complaints={complaints} />{user?.role !== "User" && <UserTable users={summary.users} />}</div>
     </div>
   );
 };

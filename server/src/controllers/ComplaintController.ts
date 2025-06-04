@@ -47,7 +47,7 @@ class ComplaintController {
                 });
                 data = response.data;
                 let score = data.index;
-                let mylist=[issue_category];
+                let mylist=issue_category;
                 response = await axios.post('http://127.0.0.1:5002/normalize', {
                     score: score,
                     categories: mylist,

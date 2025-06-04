@@ -43,7 +43,7 @@ const Todo = () => {
         const response = await fetch(endpoint , {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: "todo" }),
+          body: JSON.stringify({ status: "todo",user }),
         });
         const data = await response.json();
         setComplaints(data.complaints || []);

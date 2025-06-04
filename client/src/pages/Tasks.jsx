@@ -39,7 +39,7 @@ const Tasks = () => {
       try {
         let endpoint = 'http://localhost:5000/complaints/myComplaint';
         let endpoint2 = 'http://localhost:5000/complaints/myComplaint';;
-      if (user.role === 'Admin') {
+      if (user.role !== 'User') {
       endpoint = 'http://localhost:5000/admin';
        endpoint2 ='http://localhost:5000/Admin/mystats'
       }

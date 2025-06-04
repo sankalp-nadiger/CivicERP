@@ -40,7 +40,7 @@ const Navbar = () => {
 
         {/* Notification Panel and User Avatar */}
         <div className='flex gap-2 items-center'>
-          <NotificationPanel />
+        <NotificationPanel currentUser={{ uuid: "USER_UUID", role: "vc" }} />
           <UserAvatar />
         </div>
       </div>

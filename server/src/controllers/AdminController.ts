@@ -10,6 +10,7 @@ class AdminController {
            
             let complaint_list = await Complaint.find();
             res.status(200).json({ "complaints": complaint_list });
+            console.log('cooo',complaint_list )
         } catch (e) {
             res.status(400).json({ "message": "Something went wrong" });
         }
@@ -33,6 +34,7 @@ class AdminController {
                 complaintToBeUpdated.comments.push(commentString);
                 complaintToBeUpdated.lastupdate = new Date(Date.now());
                 await complaintToBeUpdated.save();
+              
             } else {
                 res.status(404).json({ "message": "Complaint Not Found" });
                 return;
@@ -45,11 +47,42 @@ class AdminController {
     }
 
     // Get complaints by status
-    async complaintsByStatus(req: Request, res: Response) {
+    async complaintsByStatus(req: any, res: any) {
         try {
             const { status } = req.body;
-            let complaintsOfParticularStatus = await Complaint.find({ status });
-            res.status(200).json({ "complaints": complaintsOfParticularStatus });
+            
+             // Define role-based access control
+      const accessControl:any= {
+        "vc": ["infrastructure", "maintenance","others","hostel","faculty","library"],
+        "prince":["infrastructure", "maintenance","others","hostel","faculty","library"],
+        "admin":["infrastructure", "maintenance","others","hostel","faculty","library"],
+        "warden":["hostel","ragging","women Safety"],
+        "estate" : ["infrastructure"]
+        // Add more roles and their permitted categories as needed
+      };
+      // Get user role
+      let role = req.body.user.role??"";
+      role=role.toLowerCase();
+  
+      // If role not found in access control, deny access
+      if (!accessControl[role]) {
+        return res.status(403).json({ message: "Unauthorized role" });
+      }
+  
+      const allowedCategories = accessControl[role];
+      console.log(allowedCategories)
+      // Fetch all complaints
+      let complaints = await Complaint.find({ status});
+  
+      // Filter complaints based on allowed categories
+      let complaintsOfCategory = complaints.filter((complaint) =>
+        complaint.issue_category.some((category: string) =>
+          allowedCategories.includes(category.toLowerCase())
+        )
+      );
+
+  
+      res.status(200).json({ complaints: complaintsOfCategory });
         } catch (e) {
             res.status(404).json({ "message": "Something Went Wrong" });
         }
@@ -76,7 +109,9 @@ class AdminController {
       const accessControl:any= {
         "vc": ["infrastructure", "maintenance","others","hostel","faculty","library"],
         "prince":["infrastructure", "maintenance","others","hostel","faculty","library"],
-        "admin":[ "infrastructure"]
+        "admin":[ "infrastructure"],
+        "warden":["hostel","ragging","women Safety"],
+        "estate" : ["infrastructure"]
         // Add more roles and their permitted categories as needed
       };
   

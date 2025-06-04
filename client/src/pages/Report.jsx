@@ -1,8 +1,19 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef , useEffect} from 'react';
 import { useReactToPrint } from 'react-to-print';
 import { getPriority } from '../utils';
 
+const categoryQuestionMap = {
+  Infrastructure: 'Give complaints of infrastructure .',
+  Faculty: 'give complaint or issue regarding faculty.',
+  Examinations: 'Share your issue related to examinations.',
+  Hostel: 'give all complaints of hostel.',
+  Library: 'Mention any complaint regarding the library.',
+  Ragging: 'Report any incident or concern related to ragging.',
+};
+
+const categories = Object.keys(categoryQuestionMap);
 const ReportGenerator = () => {
+  const [category, setCategory] = useState('');
   const [input, setInput] = useState('');
   const [responseData, setResponseData] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -29,6 +40,16 @@ const ReportGenerator = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+   useEffect(() => {
+      handleSubmitInput()
+    }, [category]);
+    const handleCategoryChange = (e) => {
+    const selectedCategory = e.target.value;
+    setInput(categoryQuestionMap[selectedCategory]);
+    setCategory(selectedCategory);
+    
+    
   };
 
   const handleSubmitInput = async () => {
@@ -64,6 +85,18 @@ const ReportGenerator = () => {
       </div>
 
       <div style={{ marginBottom: '20px' }}>
+        <label>Select Category: </label>
+        <select
+          value={category}
+          onChange={handleCategoryChange}
+          style={{ padding: '10px', marginBottom: '10px', width: '100%' }}
+        >
+          <option value="">-- Select Category --</option>
+          {categories.map((cat) => (
+            <option key={cat}  value={cat}>{cat}</option>
+          ))}
+        </select>
+
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
