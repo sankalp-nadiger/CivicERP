@@ -31,3 +31,4 @@ Thumbs.db
 # TypeScript build artifacts
 *.tsbuildinfo
 
+server/package-lock.json
