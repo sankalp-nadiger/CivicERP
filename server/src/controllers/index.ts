@@ -1,5 +1,5 @@
-import AdminController from "./AdminController.js";
-import AuthController from "./AuthController.js";
-import ComplaintController from "./ComplaintController.js";
+import AdminController from "./AdminController.ts";
+import AuthController from "./AuthController.ts";
+import ComplaintController from "./ComplaintController.ts";
 
 export {AdminController,AuthController,ComplaintController};

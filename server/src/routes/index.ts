@@ -1,9 +1,9 @@
 import { Router } from "express";
-import authRouter from "./AuthRouter.js";
-import complaintRouter from "./ComplaintRouter.js";
-import adminRouter from "./AdminRouter.js";
-import healthRouter from "./HealthRouter.js";
-import { verifyToken, verifyAdmin, verifyUser } from "../utils/verifyUser.js"; // Import your middleware
+import authRouter from "./AuthRouter.ts";
+import complaintRouter from "./ComplaintRouter.ts";
+import adminRouter from "./AdminRouter.ts";
+import healthRouter from "./HealthRouter.ts";
+import { verifyToken, verifyAdmin, verifyUser } from "../utils/verifyUser.ts"; // Import your middleware
 
 const mainRouter = Router();
 

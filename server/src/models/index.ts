@@ -1,4 +1,4 @@
-import User from "./UserModel.js";
-import Complaint from "./ComplaintModel.js";
+import User from "./UserModel.ts";
+import Complaint from "./ComplaintModel.ts";
 
 export {User,Complaint};

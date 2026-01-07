@@ -6,7 +6,9 @@
     "rootDir": "./src",               // Root directory for your source files
     "strict": true,                   // Enable strict type-checking options
     "esModuleInterop": true,          // Allow default imports from CommonJS modules
-    "moduleResolution": "node",       // Use Node.js module resolution
+    "moduleResolution": "bundler",    // Use bundler module resolution for .ts extensions
+    "allowImportingTsExtensions": true, // Allow .ts extensions in imports
+    "noEmit": true,                   // Don't emit files (bundler will handle this)
     "resolveJsonModule": true,        // Allow importing JSON files as modules
     "skipLibCheck": true              // Skip checking type definitions in node_modules
   },

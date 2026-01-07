@@ -2,8 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import {connect} from 'mongoose';
 import { config } from 'dotenv';
-import mainRouter from './routes/index.js';
-
+import mainRouter from './routes/index.ts';
 
 config();
 
@@ -32,4 +31,3 @@ app.listen(PORT,async()=>{
     await mongoConnect();
     console.log(`PORT started on port ${PORT}`)
 })
-
