@@ -2,3 +2,5 @@ flask
 pillow
 numpy 
 opencv-python
+torch
+transformers
