@@ -11,9 +11,12 @@ score_model = AutoModelForSequenceClassification.from_pretrained('nlptown/bert-b
 score_tokenizer = AutoTokenizer.from_pretrained('nlptown/bert-base-multilingual-uncased-sentiment')
 
 tag_weights = {
-    "women": 5, "assault": 5, "ragging": 5,
-    "food": 4, "hostel": 4, "appliances": 3,
-    "others": 1,"infrastructure": 3
+    "public safety": 5, "crime": 5, "emergency": 5,
+    "water supply": 4, "electricity": 4, "sanitation": 4,
+    "roads": 4, "infrastructure": 4, "drainage": 4,
+    "street lights": 3, "garbage": 3, "pollution": 3,
+    "parks": 2, "building permits": 2, "noise": 2,
+    "others": 1
 }
 
 @app.route('/getSummary', methods=["POST"])
@@ -59,4 +62,3 @@ def getOverallScore():
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5002, debug=True)
-
