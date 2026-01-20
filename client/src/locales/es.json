@@ -1,0 +1,75 @@
+{
+  "dashboard": {
+    "title": "Panel de Control",
+    "overview": "Descripción General",
+    "departments": "Departamentos",
+    "contractors": "Contratistas",
+    "complaints": "Quejas",
+    "history": "Historial",
+    "settings": "Configuración"
+  },
+  "mcc": {
+    "welcome": "Panel del Comisionado Municipal",
+    "departmentManagement": "Gestión de Departamentos",
+    "addDepartment": "Añadir Departamento",
+    "editDepartment": "Editar Departamento",
+    "deleteDepartment": "Eliminar Departamento",
+    "departmentName": "Nombre del Departamento",
+    "departmentHead": "Jefe del Departamento",
+    "sendSignupLink": "Enviar Enlace de Registro",
+    "inviteSystem": "Sistema de Invitación",
+    "cityWideAnalytics": "Análisis de la Ciudad",
+    "slaCompliance": "Cumplimiento de SLA",
+    "bottleneckDetection": "Detección de Cuellos de Botella",
+    "viewDetails": "Ver Detalles"
+  },
+  "departmentHead": {
+    "welcome": "Panel del Jefe de Departamento",
+    "contractorManagement": "Gestión de Contratistas",
+    "taskAssignment": "Asignación de Tareas",
+    "progressTracking": "Seguimiento de Progreso",
+    "searchContractors": "Buscar contratistas...",
+    "availabilityStatus": "Estado de Disponibilidad",
+    "free": "Libre",
+    "occupied": "Ocupado",
+    "assignTask": "Asignar Tarea",
+    "selectComplaint": "Seleccionar Queja",
+    "selectContractor": "Seleccionar Contratista"
+  },
+  "stages": {
+    "intake": "Entrada",
+    "fieldwork": "Trabajo de Campo",
+    "verification": "Verificación",
+    "approval": "Aprobación",
+    "completed": "Completado"
+  },
+  "sla": {
+    "timer": "Temporizador SLA",
+    "deadline": "Fecha Límite",
+    "daysRemaining": "Días Restantes",
+    "hoursRemaining": "Horas Restantes",
+    "overdue": "Vencido"
+  },
+  "auditLog": {
+    "workHistory": "Historial de Trabajo",
+    "chronological": "Acciones Cronológicas",
+    "action": "Acción",
+    "performer": "Realizado Por",
+    "timestamp": "Marca de Tiempo",
+    "changes": "Cambios"
+  },
+  "common": {
+    "add": "Añadir",
+    "edit": "Editar",
+    "delete": "Eliminar",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "search": "Buscar",
+    "filter": "Filtrar",
+    "export": "Exportar",
+    "loading": "Cargando...",
+    "noData": "Sin datos disponibles",
+    "success": "Éxito",
+    "error": "Error"
+  }
+}

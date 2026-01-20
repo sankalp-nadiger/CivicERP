@@ -1,5 +1,6 @@
-import AdminController from "./AdminController.ts";
-import AuthController from "./AuthController.ts";
-import ComplaintController from "./ComplaintController.ts";
+import AdminController from "./AdminController";
+import AuthController from "./AuthController";
+import ComplaintController from "./ComplaintController";
+import GovernanceController from "./GovernanceController";
 
-export {AdminController,AuthController,ComplaintController};
+export {AdminController,AuthController,ComplaintController,GovernanceController};

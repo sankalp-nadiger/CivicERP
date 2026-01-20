@@ -1,0 +1,75 @@
+{
+  "dashboard": {
+    "title": "डैशबोर्ड",
+    "overview": "सारांश",
+    "departments": "विभाग",
+    "contractors": "ठेकेदार",
+    "complaints": "शिकायतें",
+    "history": "इतिहास",
+    "settings": "सेटिंग्स"
+  },
+  "mcc": {
+    "welcome": "नगर आयुक्त डैशबोर्ड",
+    "departmentManagement": "विभाग प्रबंधन",
+    "addDepartment": "विभाग जोड़ें",
+    "editDepartment": "विभाग संपादित करें",
+    "deleteDepartment": "विभाग हटाएं",
+    "departmentName": "विभाग का नाम",
+    "departmentHead": "विभाग प्रमुख",
+    "sendSignupLink": "साइनअप लिंक भेजें",
+    "inviteSystem": "आमंत्रण प्रणाली",
+    "cityWideAnalytics": "शहर-व्यापी विश्लेषण",
+    "slaCompliance": "SLA अनुपालन",
+    "bottleneckDetection": "अड़चन पहचान",
+    "viewDetails": "विवरण देखें"
+  },
+  "departmentHead": {
+    "welcome": "विभाग प्रमुख डैशबोर्ड",
+    "contractorManagement": "ठेकेदार प्रबंधन",
+    "taskAssignment": "कार्य असाइनमेंट",
+    "progressTracking": "प्रगति ट्रैकिंग",
+    "searchContractors": "ठेकेदारों को खोजें...",
+    "availabilityStatus": "उपलब्धता स्थिति",
+    "free": "मुक्त",
+    "occupied": "व्यस्त",
+    "assignTask": "कार्य असाइन करें",
+    "selectComplaint": "शिकायत चुनें",
+    "selectContractor": "ठेकेदार चुनें"
+  },
+  "stages": {
+    "intake": "स्वीकृति",
+    "fieldwork": "क्षेत्र कार्य",
+    "verification": "सत्यापन",
+    "approval": "स्वीकृति",
+    "completed": "पूर्ण"
+  },
+  "sla": {
+    "timer": "SLA टाइमर",
+    "deadline": "समय सीमा",
+    "daysRemaining": "शेष दिन",
+    "hoursRemaining": "शेष घंटे",
+    "overdue": "अतिदेय"
+  },
+  "auditLog": {
+    "workHistory": "कार्य इतिहास",
+    "chronological": "कालानुक्रमिक क्रियाएं",
+    "action": "क्रिया",
+    "performer": "द्वारा किया गया",
+    "timestamp": "समय मुहर",
+    "changes": "परिवर्तन"
+  },
+  "common": {
+    "add": "जोड़ें",
+    "edit": "संपादित करें",
+    "delete": "हटाएं",
+    "save": "सहेजें",
+    "cancel": "रद्द करें",
+    "search": "खोज",
+    "filter": "फ़िल्टर",
+    "export": "निर्यात",
+    "loading": "लोड हो रहा है...",
+    "noData": "कोई डेटा उपलब्ध नहीं",
+    "success": "सफलता",
+    "error": "त्रुटि"
+  }
+}

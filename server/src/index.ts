@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import {connect} from 'mongoose';
 import { config } from 'dotenv';
-import mainRouter from './routes/index.ts';
+import mainRouter from './routes/index';
 
 config();
 
@@ -20,14 +20,16 @@ async function mongoConnect(){
     try{
     const mongoURI=process.env.MONGO_URI||"";
     await connect(mongoURI);
-    console.log("Connection to mongo sucessful")
+    console.log("Connection to mongo successful")
     }catch(e:any){
-        console.log(e.message);
+        console.log('Mongo connection error:', e.message);
     }
 }
 
-app.listen(PORT,async()=>{
+import { initRedis } from './utils/RedisSetup';
 
+app.listen(PORT,async()=>{
     await mongoConnect();
+    await initRedis();
     console.log(`PORT started on port ${PORT}`)
 })

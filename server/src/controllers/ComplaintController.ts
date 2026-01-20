@@ -1,9 +1,8 @@
-import pkg from 'express';
-const { Request, Response } = pkg;
-import { Complaint, User } from "../models/index.ts";
+import { Request, Response } from 'express';
+import { Complaint, User } from "../models/index";
 import { v4 } from "uuid";
 import bcryptjs from 'bcryptjs';
-import client from "../utils/RedisSetup.ts";
+import client from "../utils/RedisSetup";
 import axios from "axios";
 
 class ComplaintController {

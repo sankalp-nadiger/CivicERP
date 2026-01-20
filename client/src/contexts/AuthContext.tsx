@@ -2,29 +2,26 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 interface User {
-  id: string;
+  id?: string;
   name: string;
   email: string;
-  role: 'public' | 'admin';
+  role: 'public' | 'admin' | 'mcc' | 'department-head' | 'contractor' | 'executor' | 'elected';
   phone?: string;
   location?: string;
   department?: string; // For admin users
+  departmentId?: string; // For department head users
+  departmentName?: string; // For department head users
+  companyName?: string; // For contractor users
+  governanceLevel?: string; // For governance users (city-level1-6, panchayat-level1-6)
+  governanceType?: 'city' | 'panchayat'; // Type of governance
 }
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string, role: 'public' | 'admin') => Promise<boolean>;
-  register: (userData: RegisterData) => Promise<boolean>;
+  login: (userData: Partial<User>) => void;
   logout: () => void;
-}
-
-interface RegisterData {
-  name: string;
-  email: string;
-  password: string;
-  phone: string;
-  location: string;
+  isLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -40,78 +37,43 @@ export const useAuth = () => {
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     // Check for stored auth data
-    const storedUser = localStorage.getItem('ocms_user');
+    const storedUser = localStorage.getItem('civicerc_user');
     if (storedUser) {
-      setUser(JSON.parse(storedUser));
-      setIsAuthenticated(true);
+      try {
+        setUser(JSON.parse(storedUser));
+        setIsAuthenticated(true);
+      } catch (error) {
+        console.error('Failed to parse stored user:', error);
+        localStorage.removeItem('civicerc_user');
+      }
     }
+    setIsLoading(false);
   }, []);
 
-  const login = async (email: string, password: string, role: 'public' | 'admin'): Promise<boolean> => {
-    // Simulate API call with role-specific mock data
-    try {
-      let mockUser: User;
-      
-      if (role === 'admin') {
-        mockUser = {
-          id: Math.random().toString(36).substr(2, 9),
-          name: 'Srikanth',
-          email,
-          role: 'admin',
-          phone: '+91 98765 43210',
-          location: 'Government Office, New Delhi',
-          department: 'Public Works Department'
-        };
-      } else {
-        mockUser = {
-          id: Math.random().toString(36).substr(2, 9),
-          name: 'Varun',
-          email,
-          role: 'public',
-          phone: '+91 99887 65432',
-          location: 'Connaught Place, New Delhi'
-        };
-      }
+  const login = (userData: Partial<User>) => {
+    const newUser: User = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: userData.name || 'User',
+      email: userData.email || '',
+      role: userData.role || 'public',
+      departmentId: userData.departmentId,
+      departmentName: userData.departmentName,
+      ...userData,
+    };
 
-      setUser(mockUser);
-      setIsAuthenticated(true);
-      localStorage.setItem('ocms_user', JSON.stringify(mockUser));
-      return true;
-    } catch (error) {
-      console.error('Login failed:', error);
-      return false;
-    }
-  };
-
-  const register = async (userData: RegisterData): Promise<boolean> => {
-    try {
-      // Registration is only for public users
-      const newUser: User = {
-        id: Math.random().toString(36).substr(2, 9),
-        name: userData.name,
-        email: userData.email,
-        role: 'public',
-        phone: userData.phone,
-        location: userData.location
-      };
-
-      setUser(newUser);
-      setIsAuthenticated(true);
-      localStorage.setItem('ocms_user', JSON.stringify(newUser));
-      return true;
-    } catch (error) {
-      console.error('Registration failed:', error);
-      return false;
-    }
+    setUser(newUser);
+    setIsAuthenticated(true);
+    localStorage.setItem('civicerc_user', JSON.stringify(newUser));
   };
 
   const logout = () => {
     setUser(null);
     setIsAuthenticated(false);
-    localStorage.removeItem('ocms_user');
+    localStorage.removeItem('civicerc_user');
   };
 
   return (
@@ -119,8 +81,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       user,
       isAuthenticated,
       login,
-      register,
-      logout
+      logout,
+      isLoading
     }}>
       {children}
     </AuthContext.Provider>

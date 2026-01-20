@@ -2,6 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Full screen body and root */
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Ensure proper scrolling in flex containers */
+[class*="overflow-y-auto"] {
+  -webkit-overflow-scrolling: touch;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

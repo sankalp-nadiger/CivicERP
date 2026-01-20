@@ -1,6 +1,5 @@
-import pkg from 'express';
-const { Request, Response } = pkg;
-import { User } from "../models/index.ts";
+import { Request, Response } from 'express';
+import { User } from "../models/index";
 import bcryptjs from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { v4 } from "uuid";

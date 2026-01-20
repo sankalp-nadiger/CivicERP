@@ -1,7 +1,6 @@
-import pkg from 'express';
-const { Request, Response } = pkg;
-import { Complaint } from "../models/index.ts";
-import { User } from "../models/index.ts";
+import { Request, Response } from 'express';
+import { Complaint } from "../models/index";
+import { User } from "../models/index";
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 class AdminController {

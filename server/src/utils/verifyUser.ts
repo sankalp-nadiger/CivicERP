@@ -1,7 +1,6 @@
-import pkg from 'express';
-const { Request, Response, NextFunction } = pkg;
+import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import errorHandler from './error.ts';
+import errorHandler from './error';
 
 // Types
 interface JwtPayload {
