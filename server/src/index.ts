@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import {connect} from 'mongoose';
 import { config } from 'dotenv';
-import mainRouter from './routes/index';
+import mainRouter from './routes/index.ts';
 
 config();
 
@@ -26,7 +26,7 @@ async function mongoConnect(){
     }
 }
 
-import { initRedis } from './utils/RedisSetup';
+import { initRedis } from './utils/RedisSetup.ts';
 
 app.listen(PORT,async()=>{
     await mongoConnect();

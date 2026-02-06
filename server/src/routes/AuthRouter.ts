@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { AuthController } from "../controllers/index";
-import { verifyToken} from "../utils/verifyUser";
+import { AuthController } from "../controllers/index.ts";
+import { verifyToken} from "../utils/verifyUser.ts";
 
 
 const authRouter=Router()

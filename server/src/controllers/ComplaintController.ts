@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
-import { Complaint, User } from "../models/index";
+import { Complaint, User } from "../models/index.ts";
 import { v4 } from "uuid";
 import bcryptjs from 'bcryptjs';
-import client from "../utils/RedisSetup";
+import client from "../utils/RedisSetup.ts";
 import axios from "axios";
 
 class ComplaintController {
