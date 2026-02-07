@@ -1,4 +1,4 @@
-import contactEmail from './NodeMailer.ts';
+import contactEmail from './NodeMailer.js';
 
 interface EmailCredentials {
   email: string;
