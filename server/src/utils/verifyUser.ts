@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import errorHandler from './error.ts';
+import errorHandler from './error.js';
 
 // Types
 interface JwtPayload {

@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
-import { User, Department, Area, Officer } from '../models/index.ts';
+import { User, Department, Area, Officer } from '../models/index.js';
 import bcryptjs from 'bcryptjs';
 import { v4 } from 'uuid';
-import { sendCredentialsEmail, generatePassword } from '../utils/emailService.ts';
+import { sendCredentialsEmail, generatePassword } from '../utils/emailService.js';
 
 class GovernanceController {
   // Create Department

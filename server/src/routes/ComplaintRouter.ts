@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { ComplaintController } from "../controllers/index.ts";
+import { ComplaintController } from "../controllers/index.js";
 
 const complaintRouter=Router()
 

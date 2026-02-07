@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { GovernanceController } from '../controllers/index.ts';
-import { verifyToken } from '../utils/verifyUser.ts';
+import { GovernanceController } from '../controllers/index.js';
+import { verifyToken } from '../utils/verifyUser.js';
 
 const governanceRouter = Router();
 

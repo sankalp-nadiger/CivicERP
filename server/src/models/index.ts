@@ -1,10 +1,10 @@
-import User from "./UserModel.ts";
-import Complaint from "./ComplaintModel.ts";
-import CityLevel from "./CityLevelModel.ts";
-import PanchayatLevel from "./PanchayatLevelModel.ts";
-import Role from "./RoleModel.ts";
-import Department from "./DepartmentModel.ts";
-import Area from "./AreaModel.ts";
-import Officer from "./OfficerModel.ts";
+import User from "./UserModel.js";
+import Complaint from "./ComplaintModel.js";
+import CityLevel from "./CityLevelModel.js";
+import PanchayatLevel from "./PanchayatLevelModel.js";
+import Role from "./RoleModel.js";
+import Department from "./DepartmentModel.js";
+import Area from "./AreaModel.js";
+import Officer from "./OfficerModel.js";
 
 export { User, Complaint, CityLevel, PanchayatLevel, Role, Department, Area, Officer };
