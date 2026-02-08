@@ -67,6 +67,8 @@ class ComplaintController {
             mycomplaint.complaint = complaint_to_be_added;
             mycomplaint.complaint_proof = complaint_proof;
             mycomplaint.issue_category = issue_category;
+            // Reference the user who raised the complaint
+            mycomplaint.raisedBy = user._id;
             mycomplaint.complaint_id = complaint_id;
             mycomplaint.title = title;
             mycomplaint.status = "todo"; // Default status
@@ -96,7 +98,9 @@ class ComplaintController {
                     let x = await client.get(complaints[i]);
                     if (x !== null) {
                         let complaint = await Complaint.findOne({ complaint_id: x });
-                        if (complaint !== null) {
+                            if (complaint !== null) {
+                            // populate raisedBy for each complaint
+                            complaint = await Complaint.findById(complaint._id).populate('raisedBy', 'name uuid email');
                             newlist.push(complaint)
                         }
                     }
@@ -128,6 +132,8 @@ class ComplaintController {
                     if (x !== null) {
                         let complaint = await Complaint.findOne({ complaint_id: x });
                         if (complaint !== null) {
+                            // populate raisedBy for each complaint
+                            complaint = await Complaint.findById(complaint._id).populate('raisedBy', 'name uuid email');
                             newlist.push(complaint)
                         }
                     }
