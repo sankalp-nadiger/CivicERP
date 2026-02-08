@@ -101,7 +101,9 @@ class ComplaintController {
                             if (complaint !== null) {
                             // populate raisedBy for each complaint
                             complaint = await Complaint.findById(complaint._id).populate('raisedBy', 'name uuid email');
-                            newlist.push(complaint)
+                            if (complaint !== null) {
+                                newlist.push(complaint)
+                            }
                         }
                     }
                 } catch (e: any) {
@@ -134,7 +136,9 @@ class ComplaintController {
                         if (complaint !== null) {
                             // populate raisedBy for each complaint
                             complaint = await Complaint.findById(complaint._id).populate('raisedBy', 'name uuid email');
-                            newlist.push(complaint)
+                            if (complaint !== null) {
+                                newlist.push(complaint)
+                            }
                         }
                     }
                 } catch (e: any) {
