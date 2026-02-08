@@ -26,6 +26,11 @@ const ComplaintSchema = new mongoose.Schema({
     required: true,
     unique: true,
   },
+  raisedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: false,
+  },
   status: {
     type: String,
     required: true,
