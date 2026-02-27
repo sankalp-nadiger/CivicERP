@@ -346,5 +346,108 @@ def classifyImage():
     except Exception as e:
         return jsonify({"error": f"Classification failed: {str(e)}"}), 500
 
+
+@app.route('/generateDescription', methods=['POST'])
+def generateDescription():
+    """
+    Generate a short description and department/category info for the uploaded image.
+    Returns JSON with: description, department, category, confidence, auto_generated
+    """
+    if 'image' not in request.files:
+        return jsonify({"error": "No image uploaded"}), 400
+
+    try:
+        file = request.files['image']
+        image = Image.open(file).convert('RGB')
+
+        # Use CLIP to classify into department categories
+        inputs = clip_processor(
+            text=DEPARTMENT_CATEGORIES,
+            images=image,
+            return_tensors="pt",
+            padding=True
+        )
+
+        with torch.no_grad():
+            outputs = clip_model(**inputs)
+            logits_per_image = outputs.logits_per_image
+            probs = logits_per_image.softmax(dim=1)
+
+        top_prob, top_idx = torch.max(probs[0], dim=0)
+        detected_category = DEPARTMENT_CATEGORIES[top_idx.item()]
+        confidence = float(top_prob.item())
+
+        # Derive a human-friendly department name
+        dept_name = detected_category.split(' and ')[0].split(' issues')[0].split(' problems')[0].title()
+
+        # Also collect top-3 predictions to make a better natural-language description
+        topk = torch.topk(probs[0], k=min(3, probs[0].shape[0]))
+        alt_preds = []
+        for p_idx, p_prob in zip(topk.indices, topk.values):
+            cat = DEPARTMENT_CATEGORIES[p_idx.item()]
+            alt_preds.append((cat, float(p_prob.item())))
+
+        # Map simple actions based on keywords to make the description actionable
+        action_map = {
+            'pothole': 'repair the road and fill the pothole',
+            'road': 'repair the road and restore safe driving conditions',
+            'street': 'repair the road and restore safe driving conditions',
+            'water': 'inspect the drainage and fix the leakage',
+            'drainage': 'inspect the drainage and clear blockages',
+            'sewage': 'attend to the sewage/drainage and clear blockages',
+            'sewer': 'attend to the sewage/drainage and clear blockages',
+            'garbage': 'remove the refuse and schedule regular collection',
+            'trash': 'remove the refuse and schedule regular collection',
+            'electricity': 'inspect power lines and restore supply',
+            'light': 'repair or replace the streetlight',
+            'park': 'inspect the park and perform maintenance',
+            'pollution': 'investigate pollution sources and mitigate',
+            'building': 'inspect the construction and enforce regulations'
+        }
+
+        suggested_action = None
+        lowered = detected_category.lower()
+        for key, act in action_map.items():
+            if key in lowered:
+                suggested_action = act
+                break
+
+        # Build a human-like description (user-voice)
+        if confidence >= 0.25:
+            # Friendly user phrasing asking for a fix
+            description = (
+                f"Hi, I uploaded a photo showing what looks like {detected_category}. "
+                f"It appears to be an issue that needs attention (confidence {round(confidence*100,1)}%)."
+            )
+            if suggested_action:
+                description += f" Could you please {suggested_action}? Thank you."
+            else:
+                description += " Could you please investigate and fix this? Thank you."
+        else:
+            # Low confidence: ask for human review and invite clarifying info from user
+            alt_text = ', '.join([
+                f"{p[0]} ({round(p[1]*100,1)}%)" for p in alt_preds
+            ])
+            description = (
+                "Hi, I uploaded a photo but I'm not sure how to describe it precisely. "
+                f"The image may show: {alt_text}. Could someone please review and advise or fix it?"
+            )
+
+        result = {
+            "description": description,
+            "department": dept_name,
+            "category": detected_category,
+            "confidence": round(confidence, 3),
+            "alternatives": [
+                {"category": p[0], "confidence": round(p[1], 3)} for p in alt_preds
+            ],
+            "auto_generated": True
+        }
+
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({"error": f"Description generation failed: {str(e)}"}), 500
+
 if __name__ == '__main__':
-    app.run(debug=True,port=5001)
+    app.run(host="0.0.0.0",debug=True,port=5001)
