@@ -57,6 +57,22 @@ const ComplaintSchema = new mongoose.Schema({
   comments:{
     type:[String],
     default:[]
+  },
+  departmentId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Department',
+    required: false,
+    default: undefined,
+  },
+  areaId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Area',
+    required: false,
+    default: undefined,
+  },
+  location: {
+    type: String,
+    required: false,
   }
 });
 

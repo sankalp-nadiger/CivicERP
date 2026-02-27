@@ -29,13 +29,21 @@ export const generateMockAreas = (governanceType: GovernanceType): Area[] => {
   const areas: Area[] = [];
 
   if (governanceType === "CITY") {
-    // Create 3 Zones with 4 Wards each
-    const zones = ["North Zone", "Central Zone", "South Zone"];
+    // Create 5 Zones with 4 Wards each
+    // Keep IDs stable for existing seeded data: area_0..area_4
+    const zones: Array<{ id: string; name: string }> = [
+      { id: "area_0", name: "North Zone" },
+      { id: "area_1", name: "Central Zone" },
+      { id: "area_2", name: "South Zone" },
+      { id: "area_3", name: "East Zone" },
+      { id: "area_4", name: "West Zone" },
+    ];
+
     zones.forEach((zone, zoneIdx) => {
-      const zoneId = `area_${zoneIdx}`;
+      const zoneId = zone.id;
       areas.push({
         id: zoneId,
-        name: zone,
+        name: zone.name,
         type: "ZONE" as const,
         governanceType,
         createdAt: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000) // 6 months ago
@@ -269,12 +277,52 @@ export const loadOrCreateState = (governanceType?: GovernanceType) => {
   if (stored) {
     try {
       const parsed = JSON.parse(stored);
-      // If caller requested a specific governanceType and it differs from stored, ignore stored and re-create
-      if (governanceType && parsed?.governanceType && parsed.governanceType !== governanceType) {
-        // fall through to create new state for requested governanceType
-      } else {
-        return parsed;
+
+      // Lightweight migration: expand CITY zones from 3 -> 5 if needed
+      if (parsed?.governanceType === "CITY" && Array.isArray(parsed?.areas)) {
+        const existingAreas = parsed.areas as Area[];
+        const existingZoneNames = new Set(
+          existingAreas
+            .filter(a => a?.type === "ZONE")
+            .map(a => (a?.name || "").toString().trim().toLowerCase())
+        );
+
+        const neededZones: Array<{ id: string; name: string; idx: number }> = [
+          { id: "area_3", name: "East Zone", idx: 3 },
+          { id: "area_4", name: "West Zone", idx: 4 },
+        ];
+
+        const toAdd: Area[] = [];
+        neededZones.forEach(z => {
+          if (!existingZoneNames.has(z.name.toLowerCase())) {
+            toAdd.push({
+              id: z.id,
+              name: z.name,
+              type: "ZONE" as const,
+              governanceType: "CITY",
+              createdAt: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000),
+            });
+
+            for (let i = 1; i <= 4; i++) {
+              toAdd.push({
+                id: `area_${z.idx}_${i}`,
+                name: `Ward ${z.idx * 4 + i}`,
+                type: "WARD" as const,
+                parentId: z.id,
+                governanceType: "CITY",
+                createdAt: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000),
+              });
+            }
+          }
+        });
+
+        if (toAdd.length > 0) {
+          parsed.areas = [...existingAreas, ...toAdd];
+          saveState(parsed);
+        }
       }
+
+      return parsed;
     } catch {
       console.error("Failed to parse stored state");
     }

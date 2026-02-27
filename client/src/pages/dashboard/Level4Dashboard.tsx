@@ -4,9 +4,13 @@
  * PRIMARY OWNER OF COMPLAINTS - assigns to executors, tracks SLA
  */
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useGovernance } from "@/contexts/GovernanceContext";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { useToast } from "@/hooks/use-toast";
+import { getScopedComplaints, Complaint as ApiComplaint } from "@/services/complaintService";
+import { ComplaintsTable } from "@/components/dashboard/shared/ComplaintsTable";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { StatCard, ComplaintCard } from "@/components/dashboard/DashboardComponents";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,6 +31,7 @@ import { FileText, AlertCircle, CheckCircle, Clock, MapPin } from "lucide-react"
 
 export default function Level4Dashboard() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const {
     governanceType,
     currentUser,
@@ -37,19 +42,53 @@ export default function Level4Dashboard() {
     updateComplaint,
     escalateComplaint
   } = useGovernance();
+  const { toast } = useToast();
   const [selectedComplaint, setSelectedComplaint] = React.useState<any>(null);
   const [assignToUser, setAssignToUser] = React.useState("");
+  const [apiComplaints, setApiComplaints] = useState<ApiComplaint[]>([]);
+  const [isLoadingComplaints, setIsLoadingComplaints] = useState(true);
+
+  // Fetch complaints from database
+  const fetchComplaints = async () => {
+    setIsLoadingComplaints(true);
+    try {
+      const { complaints: fetchedComplaints, message } = await getScopedComplaints();
+      setApiComplaints(fetchedComplaints);
+
+      if (message && fetchedComplaints.length === 0) {
+        toast({
+          title: 'No scoped complaints',
+          description: message,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch complaints:', error);
+      const message = error instanceof Error ? error.message : 'Failed to fetch complaints from the database';
+      toast({
+        title: 'Error',
+        description: message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingComplaints(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchComplaints();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const sidebar = React.useMemo(() => {
     const hierarchy = getAreaHierarchy(governanceType);
-    const myAreaLabel = hierarchy.child === "WARD" ? "My Ward" : "My Village";
+    const myAreaLabel = hierarchy.child === "WARD" ? t("dashboard.myWard", "My Ward") : t("dashboard.myVillage", "My Village");
     return [
-      { label: "Overview", path: "/dashboard/level4", icon: <FileText className="w-4 h-4" /> },
-      { label: "My Complaints", path: "/dashboard/level4/complaints", icon: <AlertCircle className="w-4 h-4" /> },
+      { label: t("dashboard.overview", "Overview"), path: "/dashboard/level4", icon: <FileText className="w-4 h-4" /> },
+      { label: t("dashboard.myComplaints", "My Complaints"), path: "/dashboard/level4/complaints", icon: <AlertCircle className="w-4 h-4" /> },
       { label: myAreaLabel, path: "/dashboard/level4/area", icon: <MapPin className="w-4 h-4" /> },
-      { label: "SLA Status", path: "/dashboard/level4/sla", icon: <Clock className="w-4 h-4" /> }
+      { label: t("dashboard.slaStatus", "SLA Status"), path: "/dashboard/level4/sla", icon: <Clock className="w-4 h-4" /> }
     ];
-  }, [governanceType]);
+  }, [governanceType, t]);
 
   React.useEffect(() => {
     if (!currentUser) {
@@ -67,6 +106,14 @@ export default function Level4Dashboard() {
   const myArea = areas.find(a => a.id === currentUser.areaId);
   const myComplaints = currentUser.areaId ? getComplaintsByArea(complaints, currentUser.areaId) : [];
   const stats = getComplaintStats(myComplaints);
+
+  // Calculate stats from API complaints
+  const apiStats = {
+    total: apiComplaints.length,
+    open: apiComplaints.filter(c => c.status.toLowerCase().includes('todo') || c.status.toLowerCase().includes('registered')).length,
+    inProgress: apiComplaints.filter(c => c.status.toLowerCase().includes('progress') || c.status.toLowerCase().includes('investigation')).length,
+    closed: apiComplaints.filter(c => c.status.toLowerCase().includes('completed') || c.status.toLowerCase().includes('resolved')).length,
+  };
   const executors = getSubordinates(users, currentUser.id);
 
   const breachedComplaints = myComplaints.filter(
@@ -96,29 +143,31 @@ export default function Level4Dashboard() {
         <div className="p-8">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900">
-              {getLevelDisplayName(governanceType, "LEVEL_4")} Dashboard
+              {getLevelDisplayName(governanceType, "LEVEL_4")} {t("dashboard.title", "Dashboard")}
             </h1>
             <p className="text-gray-600 mt-1">
-              Area: <strong>{myArea?.name || "Not assigned"}</strong> | Primary complaint owner
+              {t('dashboard.labels.area', 'Area')}: <strong>{myArea?.name || t('dashboard.misc.notAssigned', 'Not assigned')}</strong> | {t('dashboard.misc.primaryOwner', 'Primary complaint owner')}
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-            <StatCard title="Total Complaints" value={stats.total} icon={<FileText className="w-4 h-4" />} />
-            <StatCard title="Open" value={stats.open} icon={<AlertCircle className="w-4 h-4" />} />
-            <StatCard title="SLA Breached" value={breachedComplaints.length} icon={<AlertCircle className="w-4 h-4" />} />
-            <StatCard title="Closed" value={stats.closed} icon={<CheckCircle className="w-4 h-4" />} />
+            <StatCard title={t('dashboard.stats.totalComplaints', 'Total Complaints')} value={apiStats.total} icon={<FileText className="w-4 h-4" />} />
+            <StatCard title={t('dashboard.stats.open', 'Open')} value={apiStats.open} icon={<AlertCircle className="w-4 h-4" />} />
+            <StatCard title={t('dashboard.stats.inProgress', 'In Progress')} value={apiStats.inProgress} icon={<AlertCircle className="w-4 h-4" />} />
+            <StatCard title={t('dashboard.stats.closed', 'Closed')} value={apiStats.closed} icon={<CheckCircle className="w-4 h-4" />} />
           </div>
 
           {breachedComplaints.length > 0 && (
             <Card className="mb-8 border-2 border-red-200 bg-red-50">
               <CardHeader>
-                <CardTitle className="text-red-900">⚠️ SLA Breach Alert</CardTitle>
+                <CardTitle className="text-red-900">⚠️ {t('dashboard.sla.breachAlert', 'SLA Breach Alert')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-red-800">
-                  {breachedComplaints.length} complaint{breachedComplaints.length !== 1 ? "s" : ""} have breached SLA.
-                  Please escalate immediately.
+                  {t('dashboard.sla.breachMessage', {
+                    defaultValue: '{{count}} complaints have breached SLA. Please escalate immediately.',
+                    count: breachedComplaints.length,
+                  })}
                 </p>
               </CardContent>
             </Card>
@@ -126,46 +175,35 @@ export default function Level4Dashboard() {
 
           <Tabs defaultValue="complaints" className="space-y-4">
             <TabsList>
-              <TabsTrigger value="complaints">My Complaints</TabsTrigger>
-              <TabsTrigger value="sla">SLA Status</TabsTrigger>
-              <TabsTrigger value="executors">Assigned Executors</TabsTrigger>
+              <TabsTrigger value="complaints">{t("dashboard.myComplaints", "My Complaints")}</TabsTrigger>
+              <TabsTrigger value="sla">{t("dashboard.slaStatus", "SLA Status")}</TabsTrigger>
+              <TabsTrigger value="executors">{t("dashboard.executors", "Assigned Executors")}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="complaints">
-              <div className="grid gap-4">
-                {myComplaints.length === 0 ? (
-                  <Card>
-                    <CardContent className="pt-6">
-                      <p className="text-center text-gray-500">No complaints assigned to you</p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  myComplaints.map(complaint => (
-                    <ComplaintCard
-                      key={complaint.id}
-                      complaint={complaint}
-                      onAction={(action) => {
-                        if (action === "update") {
-                          setSelectedComplaint(complaint);
-                        } else if (action === "escalate") {
-                          handleEscalate(complaint.id);
-                        }
-                      }}
-                    />
-                  ))
-                )}
-              </div>
+              {isLoadingComplaints ? (
+                <Card>
+                  <CardContent className="py-12 text-center text-gray-500">
+                    {t('dashboard.misc.loadingComplaints', 'Loading complaints...')}
+                  </CardContent>
+                </Card>
+              ) : (
+                <ComplaintsTable 
+                  complaints={apiComplaints} 
+                  onComplaintUpdate={fetchComplaints}
+                />
+              )}
             </TabsContent>
 
             <TabsContent value="sla">
               <Card>
                 <CardHeader>
-                  <CardTitle>SLA Timeline</CardTitle>
+                  <CardTitle>{t('dashboard.sla.timeline', 'SLA Timeline')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
                     {myComplaints.length === 0 ? (
-                      <p className="text-sm text-gray-500">No complaints</p>
+                      <p className="text-sm text-gray-500">{t('dashboard.misc.noComplaints', 'No complaints')}</p>
                     ) : (
                       myComplaints.map(complaint => {
                         const slaStatus = calculateSLAStatus(complaint);
@@ -216,12 +254,12 @@ export default function Level4Dashboard() {
             <TabsContent value="executors">
               <Card>
                 <CardHeader>
-                  <CardTitle>Assigned Executors/Contractors</CardTitle>
+                  <CardTitle>{t('dashboard.executors', 'Assigned Executors')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
                     {executors.length === 0 ? (
-                      <p className="text-sm text-gray-500">No executors assigned</p>
+                      <p className="text-sm text-gray-500">{t('dashboard.misc.noExecutors', 'No executors assigned')}</p>
                     ) : (
                       executors.map(executor => (
                         <div key={executor.id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded border">
@@ -245,15 +283,15 @@ export default function Level4Dashboard() {
         <Dialog open={!!selectedComplaint} onOpenChange={() => setSelectedComplaint(null)}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Assign to Executor</DialogTitle>
+              <DialogTitle>{t('dashboard.assign.title', 'Assign to Executor')}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              <p className="text-sm text-gray-600">Complaint: {selectedComplaint.title}</p>
+              <p className="text-sm text-gray-600">{t('dashboard.labels.complaint', 'Complaint')}: {selectedComplaint.title}</p>
               <div>
-                <Label>Assign To</Label>
+                <Label>{t('dashboard.assign.assignTo', 'Assign To')}</Label>
                 <Select value={assignToUser} onValueChange={setAssignToUser}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select executor" />
+                    <SelectValue placeholder={t('dashboard.assign.selectExecutor', 'Select executor')} />
                   </SelectTrigger>
                   <SelectContent>
                     {executors.map(executor => (
@@ -269,7 +307,7 @@ export default function Level4Dashboard() {
                 disabled={!assignToUser}
                 className="w-full"
               >
-                Assign Complaint
+                {t('dashboard.assign.submit', 'Assign Complaint')}
               </Button>
             </div>
           </DialogContent>

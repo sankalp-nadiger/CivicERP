@@ -8,7 +8,15 @@ import { Link, useLocation } from "react-router-dom";
 import { useGovernance } from "@/contexts/GovernanceContext";
 import { getLevelDisplayName } from "@/config/governanceTemplates";
 import { LogOut, Menu } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Sheet,
   SheetContent,
@@ -29,6 +37,9 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({ routes }) =>
   const { currentUser, governanceType, logout } = useGovernance();
   const location = useLocation();
   const [isMobile, setIsMobile] = React.useState(false);
+  const { t, i18n } = useTranslation();
+
+  const currentLanguage = (i18n.resolvedLanguage || i18n.language || 'en').split('-')[0];
 
   React.useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -47,13 +58,19 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({ routes }) =>
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="p-6 border-b">
-        <h2 className="text-lg font-bold text-gray-900 mb-2">Governance Platform</h2>
+        <h2 className="text-lg font-bold text-gray-900 mb-2">
+          {t("governance.platform", "Governance Platform")}
+        </h2>
         <div className="bg-gray-100 p-3 rounded-lg space-y-1">
           <p className="text-sm text-gray-600">
             <span className="font-semibold">{currentUser.name}</span>
           </p>
           <p className="text-xs text-gray-500">{userLevelDisplay}</p>
-          <p className="text-xs text-gray-500">{governanceType === "CITY" ? "City Corporation" : "Panchayat"}</p>
+          <p className="text-xs text-gray-500">
+            {governanceType === "CITY"
+              ? t("governance.cityCorporation", "City Corporation")
+              : t("governance.panchayat", "Panchayat")}
+          </p>
         </div>
       </div>
 
@@ -77,13 +94,30 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({ routes }) =>
 
       {/* Footer */}
       <div className="p-4 border-t space-y-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="w-full justify-start">
+              {t("common.language", "Language")}: {t(`language.${currentLanguage}`, currentLanguage)}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-52">
+            <DropdownMenuRadioGroup
+              value={currentLanguage}
+              onValueChange={(lng) => i18n.changeLanguage(lng)}
+            >
+              <DropdownMenuRadioItem value="en">{t("language.en", "English")}</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="hi">{t("language.hi", "Hindi")}</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="kn">{t("language.kn", "Kannada")}</DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Button
           onClick={logout}
           variant="outline"
           className="w-full justify-start gap-2"
         >
           <LogOut className="w-4 h-4" />
-          Logout
+          {t("common.logout", "Logout")}
         </Button>
       </div>
     </div>
@@ -99,7 +133,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({ routes }) =>
         </SheetTrigger>
         <SheetContent side="left" className="w-64 p-0">
           <SheetHeader className="px-6 pt-6">
-            <SheetTitle>Navigation</SheetTitle>
+            <SheetTitle>{t("governance.navigation", "Navigation")}</SheetTitle>
           </SheetHeader>
           {sidebarContent}
         </SheetContent>

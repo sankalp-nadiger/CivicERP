@@ -13,13 +13,18 @@ class AuthController{
             const validPassword = bcryptjs.compareSync(password, validUser.password);
             if (!validPassword){res.status(401).json({"message":"Enter valid Password"});return;};
             const token = jwt.sign({ id: validUser._id ,role : validUser.role}, process.env.JWT_SECRET||"abcdef");
-            const { password: hashedPassword, ...rest } = validUser;
+            
+            // Convert to plain object and remove password
+            const userObject = validUser.toObject();
+            const { password: hashedPassword, ...rest } = userObject;
+            
             const expiryDate = new Date(Date.now() + 3600000); // 1 hour
             res
             .cookie('access_token', token, { httpOnly: true, expires: expiryDate })
             .header('Authorization', 'Bearer ' + token) 
             .status(200)
-            .json(rest);
+            // Also return token in JSON so SPAs can store it (avoids cross-site cookie issues)
+            .json({ ...rest, token });
         } catch (error:any) {
             res.status(400).json({"message":error.message})
         }

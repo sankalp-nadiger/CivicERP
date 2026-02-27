@@ -37,6 +37,20 @@ const userSchema = new mongoose.Schema(
     role:{
         type:String,
         default:"User"
+    },
+    governanceLevel:{
+        type:String,
+        enum:["LEVEL_1","LEVEL_2","LEVEL_3","LEVEL_4"],
+        default:undefined
+    },
+    governanceType:{
+        type:String,
+        enum:["CITY","PANCHAYAT"],
+        default:undefined
+    },
+    departmentId:{
+        type:String,
+        default:undefined
     }
   },
   { timestamps: true }

@@ -2,6 +2,8 @@ import mongoose from 'mongoose';
 
 const AreaSchema = new mongoose.Schema({
   name: { type: String, required: true },
+  // Optional locality keywords that should map to this area (helps infer area from free-text addresses)
+  aliases: [{ type: String }],
   description: { type: String },
   contactPerson: { type: String, required: true },
   email: { type: String, required: true },

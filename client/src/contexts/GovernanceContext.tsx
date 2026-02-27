@@ -22,8 +22,11 @@ interface GovernanceContextType {
   initializeGovernance: (governanceType: GovernanceType) => void;
   setCurrentUser: (user: User) => void;
   addDepartment: (dept: Department) => void;
+  removeDepartment: (departmentId: string) => void;
   addArea: (area: Area) => void;
+  removeArea: (areaId: string) => void;
   addUser: (user: User) => void;
+  removeUser: (userId: string) => void;
   updateUser: (userId: string, updates: Partial<User>) => void;
   addComplaint: (complaint: Complaint) => void;
   updateComplaint: (complaintId: string, updates: Partial<Complaint>) => void;
@@ -96,14 +99,32 @@ export const GovernanceProvider: React.FC<{ children: ReactNode }> = ({ children
     saveToLocalStorage({ governanceType, departments: updated, areas, users, complaints });
   };
 
+  const removeDepartment = (departmentId: string) => {
+    const updated = departments.filter(d => d.id !== departmentId);
+    setDepartments(updated);
+    saveToLocalStorage({ governanceType, departments: updated, areas, users, complaints });
+  };
+
   const addArea = (area: Area) => {
     const updated = [...areas, area];
     setAreas(updated);
     saveToLocalStorage({ governanceType, departments, areas: updated, users, complaints });
   };
 
+  const removeArea = (areaId: string) => {
+    const updated = areas.filter(a => a.id !== areaId);
+    setAreas(updated);
+    saveToLocalStorage({ governanceType, departments, areas: updated, users, complaints });
+  };
+
   const addUser = (user: User) => {
     const updated = [...users, user];
+    setUsers(updated);
+    saveToLocalStorage({ governanceType, departments, areas, users: updated, complaints });
+  };
+
+  const removeUser = (userId: string) => {
+    const updated = users.filter(u => u.id !== userId);
     setUsers(updated);
     saveToLocalStorage({ governanceType, departments, areas, users: updated, complaints });
   };
@@ -174,8 +195,11 @@ export const GovernanceProvider: React.FC<{ children: ReactNode }> = ({ children
         initializeGovernance,
         setCurrentUser,
         addDepartment,
+        removeDepartment,
         addArea,
+        removeArea,
         addUser,
+        removeUser,
         updateUser,
         addComplaint,
         updateComplaint,

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Globe, ChevronDown } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -11,20 +11,16 @@ import {
 
 const LANGUAGES = [
   { code: 'en', label: 'English', flag: '🇬🇧' },
-  { code: 'es', label: 'Español', flag: '🇪🇸' },
-  { code: 'fr', label: 'Français', flag: '🇫🇷' },
   { code: 'hi', label: 'हिन्दी', flag: '🇮🇳' },
-  { code: 'de', label: 'Deutsch', flag: '🇩🇪' },
-  { code: 'ka', label: 'ქართული', flag: '🇬🇪' },
+  { code: 'kn', label: 'ಕನ್ನಡ', flag: '🇮🇳' },
 ];
 
 export const LanguageSwitcher: React.FC = () => {
   const { i18n } = useTranslation();
-  const [currentLang, setCurrentLang] = useState(i18n.language);
+  const currentLang = (i18n.resolvedLanguage || i18n.language || 'en').split('-')[0];
 
   const handleLanguageChange = (langCode: string) => {
     i18n.changeLanguage(langCode);
-    setCurrentLang(langCode);
   };
 
   const currentLanguage = LANGUAGES.find((l) => l.code === currentLang) || LANGUAGES[0];

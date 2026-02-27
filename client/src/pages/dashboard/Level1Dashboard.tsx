@@ -4,19 +4,18 @@
  * Top-level admin who manages entire governance structure
  */
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useGovernance } from "@/contexts/GovernanceContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import {
   StatCard,
   CreateDepartmentDialog,
-  CreateAreaDialog,
   AddOfficerDialog,
   UserListCard
 } from "@/components/dashboard/DashboardComponents";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -42,11 +41,26 @@ import {
   Pie,
   Cell
 } from "recharts";
-import { Users, Building2, MapPin, FileText, Plus } from "lucide-react";
+import { Users, Building2, MapPin, FileText, Plus, AlertCircle, CheckCircle, Trash2 } from "lucide-react";
+import { ComplaintsTable } from "@/components/dashboard/shared/ComplaintsTable";
+import { getAllComplaints, Complaint as ApiComplaint } from "@/services/complaintService";
+import * as governanceService from "@/services/governanceService";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function Level1Dashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
+  const { t } = useTranslation();
   const {
     governanceType,
     currentUser,
@@ -56,19 +70,66 @@ export default function Level1Dashboard() {
     complaints,
     setCurrentUser,
     addDepartment,
+    removeDepartment,
     addArea,
-    addUser
+    removeArea,
+    addUser,
+    removeUser
   } = useGovernance();
+
+  const [apiComplaints, setApiComplaints] = useState<ApiComplaint[]>([]);
+  const [isLoadingComplaints, setIsLoadingComplaints] = useState(true);
+  const [activeSection, setActiveSection] = useState('overview');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<{type: 'department' | 'area' | 'user', id: string, name: string} | null>(null);
+  
+  // Determine active section from URL path
+  const getActiveSectionFromPath = () => {
+    const path = location.pathname;
+    if (path.includes('/departments')) return 'departments';
+    if (path.includes('/areas')) return 'areas';
+    if (path.includes('/users')) return 'users';
+    if (path.includes('/complaints')) return 'complaints';
+    return 'overview';
+  };
 
   const sidebar = React.useMemo(() => {
     const hierarchy = getAreaHierarchy(governanceType);
     return [
-      { label: "Overview", path: "/dashboard/level1", icon: <FileText className="w-4 h-4" /> },
-      { label: "Departments", path: "/dashboard/level1/departments", icon: <Building2 className="w-4 h-4" /> },
-      { label: hierarchy.parent === "ZONE" ? "Zones" : "Taluks", path: "/dashboard/level1/areas", icon: <MapPin className="w-4 h-4" /> },
-      { label: "Users", path: "/dashboard/level1/users", icon: <Users className="w-4 h-4" /> }
+      { label: t("dashboard.overview", "Overview"), path: "/dashboard/level1", icon: <FileText className="w-4 h-4" /> },
+      { label: t("dashboard.complaints", "Complaints"), path: "/dashboard/level1/complaints", icon: <FileText className="w-4 h-4" /> },
+      { label: t("dashboard.departments", "Departments"), path: "/dashboard/level1/departments", icon: <Building2 className="w-4 h-4" /> },
+      {
+        label: hierarchy.parent === "ZONE" ? t("dashboard.zones", "Zones") : t("dashboard.taluks", "Taluks"),
+        path: "/dashboard/level1/areas",
+        icon: <MapPin className="w-4 h-4" />,
+      },
+      { label: t("dashboard.users", "Users"), path: "/dashboard/level1/users", icon: <Users className="w-4 h-4" /> }
     ];
-  }, [governanceType]);
+  }, [governanceType, t]);
+
+  // Update active section when location changes
+  useEffect(() => {
+    setActiveSection(getActiveSectionFromPath());
+  }, [location.pathname]);
+
+  // Fetch complaints from database
+  const fetchComplaints = async () => {
+    setIsLoadingComplaints(true);
+    try {
+      const fetchedComplaints = await getAllComplaints();
+      setApiComplaints(fetchedComplaints);
+    } catch (error) {
+      console.error('Failed to fetch complaints:', error);
+      toast({
+        title: t("common.error", "Error"),
+        description: t("level1.toast.fetchComplaintsFailed", "Failed to fetch complaints from the database"),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingComplaints(false);
+    }
+  };
 
   React.useEffect(() => {
     if (!currentUser) {
@@ -80,99 +141,196 @@ export default function Level1Dashboard() {
     }
   }, [currentUser, users, setCurrentUser]);
 
+  useEffect(() => {
+    fetchComplaints();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   if (!currentUser || !governanceType) {
     return null;
   }
 
+  const governanceKey = governanceType.toLowerCase() as "city" | "panchayat";
+  const level1RoleLabel = t(
+    `roles.${governanceKey}.LEVEL_1`,
+    getLevelDisplayName(governanceType, "LEVEL_1")
+  );
+  const level2RoleLabel = t(
+    `roles.${governanceKey}.LEVEL_2`,
+    getLevelDisplayName(governanceType, "LEVEL_2")
+  );
+  const level3RoleLabel = t(
+    `roles.${governanceKey}.LEVEL_3`,
+    getLevelDisplayName(governanceType, "LEVEL_3")
+  );
+  const dashboardTitle = t("dashboard.title", "Dashboard");
+
   const stats = getComplaintStats(complaints);
   const level2Users = getUsersByLevel(users, "LEVEL_2");
   const level3Users = getUsersByLevel(users, "LEVEL_3");
-  const parentAreas = areas.filter(a => a.type === getAreaHierarchy(governanceType).parent);
 
-  const handleCreateDepartment = (data: { name: string; description: string; contactPerson: string; email: string; phone?: string }) => {
-    const generatedPassword = `Dept${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
-    
-    addDepartment({
-      id: generateDepartmentId(),
-      name: data.name,
-      description: data.description,
-      governanceType,
-      createdAt: new Date()
-    });
-
-    // TODO: Call backend API to send credentials via email
-    // For now, show a toast with the credentials
-    toast({
-      title: "Department Created Successfully!",
-      description: `${data.name} has been created. Login credentials sent to ${data.email}`,
-    });
-    
-    // In production, this would call: 
-    // await sendCredentialsEmail({ email: data.email, username: data.email, password: generatedPassword, departmentName: data.name })
-    console.log('Generated credentials:', { email: data.email, password: generatedPassword, contactPerson: data.contactPerson, phone: data.phone });
+  // Calculate stats from API complaints
+  const apiStats = {
+    total: apiComplaints.length,
+    open: apiComplaints.filter(c => c.status.toLowerCase().includes('todo') || c.status.toLowerCase().includes('registered')).length,
+    inProgress: apiComplaints.filter(c => c.status.toLowerCase().includes('progress') || c.status.toLowerCase().includes('investigation')).length,
+    closed: apiComplaints.filter(c => c.status.toLowerCase().includes('completed') || c.status.toLowerCase().includes('resolved')).length,
+    breached: 0, // Would need SLA data from backend
   };
 
-  const handleCreateArea = (data: { name: string; type: string; parentId?: string; contactPerson: string; email: string; phone?: string }) => {
-    const generatedPassword = `Area${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
-    
-    addArea({
-      id: generateAreaId(),
-      name: data.name,
-      type: data.type as any,
-      parentId: data.parentId,
-      governanceType,
-      createdAt: new Date()
-    });
+  const handleCreateDepartment = async (data: { name: string; description: string; contactPerson: string; email: string; phone?: string }) => {
+    try {
+      // Call backend API to create department and send email
+      const result = await governanceService.createDepartment({
+        name: data.name,
+        description: data.description,
+        contactPerson: data.contactPerson,
+        email: data.email,
+        phone: data.phone,
+        governanceType: governanceType.toLowerCase() as 'city' | 'panchayat', // Convert to lowercase for backend
+        level: 2, // Department Head is Level 2
+      });
 
-    // TODO: Call backend API to send credentials via email
-    toast({
-      title: "Area Created Successfully!",
-      description: `${data.name} has been created. Login credentials sent to ${data.email}`,
-    });
-    
-    console.log('Generated credentials:', { email: data.email, password: generatedPassword, contactPerson: data.contactPerson, phone: data.phone });
+      // Also add to local state
+      addDepartment({
+        id: generateDepartmentId(),
+        name: data.name,
+        description: data.description,
+        governanceType,
+        createdAt: new Date()
+      });
+
+      toast({
+        title: t("level1.toast.departmentCreatedTitle", "Department Created Successfully!"),
+        description: result.emailSent 
+          ? t("level1.toast.departmentCreatedEmailSent", "{{name}} has been created. Login credentials sent to {{email}}", { name: data.name, email: data.email })
+          : t("level1.toast.departmentCreatedEmailUnavailable", "{{name}} has been created. Email service unavailable - credentials logged.", { name: data.name }),
+        variant: result.emailSent ? "default" : "destructive",
+      });
+      
+      if (!result.emailSent && result.credentials) {
+        console.log('Generated credentials (Email not sent):', result.credentials);
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : t("level1.errors.createDepartmentFailed", "Failed to create department.");
+      toast({
+        title: t("level1.toast.errorCreatingDepartmentTitle", "Error Creating Department"),
+        description: message,
+        variant: "destructive",
+      });
+      console.error('Error creating department:', error);
+    }
   };
 
-  const handleAddOfficer = (level: "LEVEL_2" | "LEVEL_3", data: { name: string; email: string; phone?: string; departmentId?: string }) => {
-    const generatedPassword = `Off${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
-    
-    const newUser = {
-      id: generateUserId(),
-      name: data.name,
-      email: data.email,
-      level,
-      governanceType,
-      department: data.departmentId || departments[0]?.id,
-      createdAt: new Date(),
-      status: "PENDING_INVITE" as const,
-      reportsTo: level === "LEVEL_2" ? currentUser.id : level2Users[0]?.id
-    };
-    addUser(newUser);
+  const handleAddOfficer = async (data: { name: string; email: string; phone?: string; departmentId?: string }) => {
+    try {
+      // Call backend API to add officer and send email
+      const result = await governanceService.addOfficer({
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        departmentId: data.departmentId || departments[0]?.id,
+        governanceType: governanceType.toLowerCase() as 'city' | 'panchayat', // Convert to lowercase for backend
+        level: 2,
+        reportsTo: currentUser.id,
+      });
 
-    toast({
-      title: "Officer Added Successfully!",
-      description: `${data.name} has been added. Login credentials sent to ${data.email}`,
-    });
-    
-    console.log('Generated credentials:', { email: data.email, password: generatedPassword, name: data.name, phone: data.phone });
+      // Also add to local state
+      const newUser = {
+        id: generateUserId(),
+        name: data.name,
+        email: data.email,
+        level: "LEVEL_2" as const,
+        governanceType,
+        department: data.departmentId || departments[0]?.id,
+        createdAt: new Date(),
+        status: "PENDING_INVITE" as const,
+        reportsTo: currentUser.id
+      };
+      addUser(newUser);
+
+      toast({
+        title: t("level1.toast.officerAddedTitle", "Officer Added Successfully!"),
+        description: result.emailSent 
+          ? t("level1.toast.officerAddedEmailSent", "{{name}} has been added. Login credentials sent to {{email}}", { name: data.name, email: data.email })
+          : t("level1.toast.officerAddedEmailUnavailable", "{{name}} has been added. Email service unavailable - credentials logged.", { name: data.name }),
+        variant: result.emailSent ? "default" : "destructive",
+      });
+      
+      if (!result.emailSent && result.credentials) {
+        console.log('Generated credentials (Email not sent):', result.credentials);
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : t("level1.errors.addOfficerFailed", "Failed to add officer.");
+      toast({
+        title: t("level1.toast.errorAddingOfficerTitle", "Error Adding Officer"),
+        description: message,
+        variant: "destructive",
+      });
+      console.error('Error adding officer:', error);
+    }
+  };
+
+  const handleDelete = () => {
+    if (!itemToDelete) return;
+
+    try {
+      if (itemToDelete.type === 'department') {
+        removeDepartment(itemToDelete.id);
+        toast({
+          title: t("level1.toast.departmentDeletedTitle", "Department Deleted"),
+          description: t("level1.toast.itemRemoved", "{{name}} has been removed successfully.", { name: itemToDelete.name }),
+        });
+      } else if (itemToDelete.type === 'area') {
+        removeArea(itemToDelete.id);
+        toast({
+          title: t("level1.toast.areaDeletedTitle", "Area Deleted"),
+          description: t("level1.toast.itemRemoved", "{{name}} has been removed successfully.", { name: itemToDelete.name }),
+        });
+      } else if (itemToDelete.type === 'user') {
+        removeUser(itemToDelete.id);
+        toast({
+          title: t("level1.toast.userDeletedTitle", "User Deleted"),
+          description: t("level1.toast.itemRemoved", "{{name}} has been removed successfully.", { name: itemToDelete.name }),
+        });
+      }
+    } catch (error) {
+      toast({
+        title: t("common.error", "Error"),
+        description: t("level1.toast.deleteFailed", "Failed to delete item. Please try again."),
+        variant: "destructive",
+      });
+    } finally {
+      setDeleteDialogOpen(false);
+      setItemToDelete(null);
+    }
+  };
+
+  const openDeleteDialog = (type: 'department' | 'area' | 'user', id: string, name: string) => {
+    setItemToDelete({ type, id, name });
+    setDeleteDialogOpen(true);
   };
 
   // Prepare chart data
   const complaintStatusData = [
-    { name: "Open", value: stats.open },
-    { name: "In Progress", value: stats.inProgress },
-    { name: "Work Done", value: stats.workDone },
-    { name: "Verified", value: stats.verified },
-    { name: "Closed", value: stats.closed },
-    { name: "Escalated", value: stats.escalated }
+    { name: t("complaintsTable.status.todo", "To Do"), value: apiComplaints.filter(c => c.status.toLowerCase().includes('todo') || c.status.toLowerCase().includes('registered')).length },
+    { name: t("complaintsTable.status.inProgress", "In Progress"), value: apiComplaints.filter(c => c.status.toLowerCase().includes('progress') || c.status.toLowerCase().includes('investigation')).length },
+    { name: t("complaintsTable.status.completed", "Completed"), value: apiComplaints.filter(c => c.status.toLowerCase().includes('completed') || c.status.toLowerCase().includes('resolved')).length },
   ].filter(d => d.value > 0);
 
-  const slaData = [
-    { name: "On Time", value: stats.total - stats.breached },
-    { name: "Breached", value: stats.breached }
-  ];
+  const priorityData = [
+    { name: t("complaintsTable.priority.high", "High"), value: apiComplaints.filter(c => c.priority_factor >= 0.7).length },
+    { name: t("complaintsTable.priority.medium", "Medium"), value: apiComplaints.filter(c => c.priority_factor >= 0.4 && c.priority_factor < 0.7).length },
+    { name: t("complaintsTable.priority.low", "Low"), value: apiComplaints.filter(c => c.priority_factor < 0.4).length },
+  ].filter(d => d.value > 0);
 
-  const COLORS = ["#3b82f6", "#ef4444"];
+  const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444"];
 
   return (
     <div className="flex h-screen w-full bg-gray-50 overflow-hidden">
@@ -183,52 +341,59 @@ export default function Level1Dashboard() {
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900">
-              {getLevelDisplayName(governanceType, "LEVEL_1")} Dashboard
+              {t(
+                "level1.heading",
+                "{{role}} {{dashboard}}",
+                { role: level1RoleLabel, dashboard: dashboardTitle }
+              )}
             </h1>
             <p className="text-gray-600 mt-1">
-              Manage {governanceType === "CITY" ? "City Municipal Corporation" : "Panchayat"} operations
+              {t(
+                "level1.subtitle",
+                "Manage {{scope}} operations",
+                {
+                  scope:
+                    governanceType === "CITY"
+                      ? t("governance.cityMunicipalCorporation", "City Municipal Corporation")
+                      : t("governance.panchayat", "Panchayat"),
+                }
+              )}
             </p>
           </div>
 
           {/* Statistics */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
             <StatCard
-              title="Total Complaints"
-              value={stats.total}
+              title={t("level1.stats.totalComplaints", "Total Complaints")}
+              value={apiStats.total}
               icon={<FileText className="w-4 h-4" />}
             />
             <StatCard
-              title="Open Complaints"
-              value={stats.open}
+              title={t("level1.stats.openComplaints", "Open Complaints")}
+              value={apiStats.open}
               icon={<AlertCircle className="w-4 h-4" />}
             />
             <StatCard
-              title="SLA Breached"
-              value={stats.breached}
+              title={t("complaintsTable.status.inProgress", "In Progress")}
+              value={apiStats.inProgress}
               icon={<AlertCircle className="w-4 h-4" />}
             />
             <StatCard
-              title="Closed (This Month)"
-              value={stats.closed}
+              title={t("level1.stats.closedTotal", "Closed (Total)")}
+              value={apiStats.closed}
               icon={<CheckCircle className="w-4 h-4" />}
             />
           </div>
 
-          {/* Tabs */}
-          <Tabs defaultValue="overview" className="space-y-4">
-            <TabsList>
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="configuration">Configuration</TabsTrigger>
-              <TabsTrigger value="management">Management</TabsTrigger>
-            </TabsList>
-
-            {/* Overview Tab */}
-            <TabsContent value="overview" className="space-y-4">
+          {/* Content based on active section */}
+          <div className="space-y-4">
+            {/* Overview Section */}
+            {activeSection === 'overview' && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Complaint Status Chart */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>Complaint Status Distribution</CardTitle>
+                    <CardTitle>{t("level1.charts.complaintStatusDistribution", "Complaint Status Distribution")}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     {complaintStatusData.length > 0 ? (
@@ -242,7 +407,7 @@ export default function Level1Dashboard() {
                         </BarChart>
                       </ResponsiveContainer>
                     ) : (
-                      <p className="text-sm text-gray-500 text-center py-8">No complaints yet</p>
+                      <p className="text-sm text-gray-500 text-center py-8">{t("level1.empty.noComplaintsYet", "No complaints yet")}</p>
                     )}
                   </CardContent>
                 </Card>
@@ -250,14 +415,14 @@ export default function Level1Dashboard() {
                 {/* SLA Status Chart */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>SLA Performance</CardTitle>
+                    <CardTitle>{t("level1.charts.priorityDistribution", "Priority Distribution")}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    {slaData.some(d => d.value > 0) ? (
+                    {priorityData.length > 0 ? (
                       <ResponsiveContainer width="100%" height={300}>
                         <PieChart>
                           <Pie
-                            data={slaData}
+                            data={priorityData}
                             cx="50%"
                             cy="50%"
                             labelLine={false}
@@ -266,126 +431,189 @@ export default function Level1Dashboard() {
                             fill="#8884d8"
                             dataKey="value"
                           >
-                            {COLORS.map((color, index) => (
-                              <Cell key={`cell-${index}`} fill={color} />
+                            {priorityData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                             ))}
                           </Pie>
                           <Tooltip />
                         </PieChart>
                       </ResponsiveContainer>
                     ) : (
-                      <p className="text-sm text-gray-500 text-center py-8">No data available</p>
+                      <p className="text-sm text-gray-500 text-center py-8">{t("common.noData", "No data available")}</p>
                     )}
                   </CardContent>
                 </Card>
               </div>
-            </TabsContent>
+            )}
 
-            {/* Configuration Tab */}
-            <TabsContent value="configuration" className="space-y-4">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Departments */}
+            {/* Complaints Section */}
+            {activeSection === 'complaints' && (
+              <div className="space-y-4">
+                {isLoadingComplaints ? (
+                  <Card>
+                    <CardContent className="py-12 text-center text-gray-500">
+                      {t("level1.loadingComplaints", "Loading complaints...")}
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <ComplaintsTable 
+                    complaints={apiComplaints} 
+                    onComplaintUpdate={fetchComplaints}
+                  />
+                )}
+              </div>
+            )}
+
+            {/* Departments Section */}
+            {activeSection === 'departments' && (
+  <div className="space-y-4">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("dashboard.departments", "Departments")}</CardTitle>
+          <CardDescription>
+            {t("level1.departments.count", "{{count}} departments", { count: departments.length })}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {departments.length === 0 ? (
+              <p className="text-sm text-gray-500">
+                {t("level1.departments.empty", "No departments created yet")}
+              </p>
+            ) : (
+              departments.map(dept => (
+                <div
+                  key={dept.id}
+                  className="flex items-center justify-between p-2 hover:bg-gray-50 rounded border"
+                >
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">{dept.name}</p>
+                    <p className="text-xs text-gray-500">{dept.description}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary">{t("common.active", "Active")}</Badge>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openDeleteDialog('department', dept.id, dept.name)}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+          <CreateDepartmentDialog onSubmit={handleCreateDepartment} />
+        </CardContent>
+      </Card>
+    </div>
+  </div>
+)}
+
+
+            {/* Areas Section */}
+            {activeSection === 'areas' && (
+              <div className="space-y-4">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Departments</CardTitle>
-                    <CardDescription>{departments.length} department{departments.length !== 1 ? "s" : ""}</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="space-y-2 max-h-64 overflow-y-auto">
-                      {departments.length === 0 ? (
-                        <p className="text-sm text-gray-500">No departments created yet</p>
-                      ) : (
-                        departments.map(dept => (
-                          <div key={dept.id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded border">
-                            <div>
-                              <p className="font-medium text-sm">{dept.name}</p>
-                              <p className="text-xs text-gray-500">{dept.description}</p>
-                            </div>
-                            <Badge variant="secondary">Active</Badge>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                    <CreateDepartmentDialog onSubmit={handleCreateDepartment} />
-                  </CardContent>
-                </Card>
-
-                {/* Areas */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Areas</CardTitle>
-                    <CardDescription>{areas.length} area{areas.length !== 1 ? "s" : ""}</CardDescription>
+                    <CardTitle>{t("level1.areas.title", "Areas")}</CardTitle>
+                    <CardDescription>{t("level1.areas.count", "{{count}} areas", { count: areas.length })}</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div className="space-y-2 max-h-64 overflow-y-auto">
                       {areas.length === 0 ? (
-                        <p className="text-sm text-gray-500">No areas created yet</p>
+                        <p className="text-sm text-gray-500">{t("level1.areas.empty", "No areas created yet")}</p>
                       ) : (
                         areas.map(area => (
                           <div key={area.id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded border">
-                            <div>
+                            <div className="flex-1">
                               <p className="font-medium text-sm">{area.name}</p>
                               <p className="text-xs text-gray-500">{area.type}</p>
                             </div>
-                            <Badge variant="outline">{area.type}</Badge>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline">{area.type}</Badge>
+                            </div>
                           </div>
                         ))
                       )}
                     </div>
-                    <CreateAreaDialog
-                      parentAreaType={getAreaHierarchy(governanceType).parent!}
-                      childAreaType={getAreaHierarchy(governanceType).child!}
-                      parentAreas={parentAreas}
-                      onSubmit={handleCreateArea}
-                    />
                   </CardContent>
                 </Card>
               </div>
-            </TabsContent>
+            )}
 
-            {/* Management Tab */}
-            <TabsContent value="management" className="space-y-4">
+            {/* Users Section */}
+            {activeSection === 'users' && (
+              <div className="space-y-4">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <UserListCard users={level2Users} title={`${getLevelDisplayName(governanceType, "LEVEL_2")}s`} />
-                <UserListCard users={level3Users} title={`${getLevelDisplayName(governanceType, "LEVEL_3")}s`} />
+                <UserListCard 
+                  users={level2Users} 
+                  title={t("level1.users.level2Title", "{{role}}", { role: level2RoleLabel })}
+                  onDelete={(id, name) => openDeleteDialog('user', id, name)}
+                />
+                <UserListCard 
+                  users={level3Users} 
+                  title={t("level1.users.level3Title", "{{role}}", { role: level3RoleLabel })}
+                  onDelete={(id, name) => openDeleteDialog('user', id, name)}
+                />
               </div>
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Add Officers</CardTitle>
-                  <CardDescription>Invite new officers to the system</CardDescription>
+                  <CardTitle>{t("level1.officers.addTitle", "Add Officers")}</CardTitle>
+                  <CardDescription>{t("level1.officers.addDescription", "Invite new officers to the system")}</CardDescription>
                 </CardHeader>
                 <CardContent className="flex gap-3">
                   <AddOfficerDialog
-                    roleTitle={getLevelDisplayName(governanceType, "LEVEL_2")}
+                    roleTitle={level2RoleLabel}
                     departments={departments}
-                    onSubmit={(data) => handleAddOfficer("LEVEL_2", data)}
+                    onSubmit={handleAddOfficer}
                     trigger={
                       <Button>
                         <Plus className="w-4 h-4 mr-2" />
-                        Add {getLevelDisplayName(governanceType, "LEVEL_2")}
-                      </Button>
-                    }
-                  />
-                  <AddOfficerDialog
-                    roleTitle={getLevelDisplayName(governanceType, "LEVEL_3")}
-                    departments={departments}
-                    onSubmit={(data) => handleAddOfficer("LEVEL_3", data)}
-                    trigger={
-                      <Button>
-                        <Plus className="w-4 h-4 mr-2" />
-                        Add {getLevelDisplayName(governanceType, "LEVEL_3")}
+                        {t("common.add", "Add")} {level2RoleLabel}
                       </Button>
                     }
                   />
                 </CardContent>
               </Card>
-            </TabsContent>
-          </Tabs>
+              </div>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("level1.deleteDialog.title", "Are you sure?")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t(
+                "level1.deleteDialog.descriptionPrefix",
+                "This will permanently delete"
+              )}{" "}
+              <strong>{itemToDelete?.name}</strong>.{" "}
+              {t(
+                "level1.deleteDialog.descriptionSuffix",
+                "This action cannot be undone."
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel", "Cancel")}</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDelete}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {t("common.delete", "Delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
-
-import { AlertCircle, CheckCircle } from "lucide-react";

@@ -1,6 +1,5 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@/components/ui/button';
 import { Globe } from 'lucide-react';
 import {
   Select,
@@ -13,11 +12,12 @@ import {
 const languages = [
   { code: 'en', label: 'English', flag: '🇬🇧' },
   { code: 'hi', label: 'हिन्दी (Hindi)', flag: '🇮🇳' },
-  { code: 'ka', label: 'ಕನ್ನಡ (Kannada)', flag: '🇮🇳' },
+  { code: 'kn', label: 'ಕನ್ನಡ (Kannada)', flag: '🇮🇳' },
 ];
 
 export const LanguageToggle: React.FC = () => {
   const { i18n } = useTranslation();
+  const currentLang = (i18n.resolvedLanguage || i18n.language || 'en').split('-')[0];
 
   const handleLanguageChange = (lang: string) => {
     i18n.changeLanguage(lang);
@@ -25,7 +25,7 @@ export const LanguageToggle: React.FC = () => {
   };
 
   return (
-    <Select value={i18n.language} onValueChange={handleLanguageChange}>
+    <Select value={currentLang} onValueChange={handleLanguageChange}>
       <SelectTrigger className="w-48">
         <Globe className="h-4 w-4 mr-2" />
         <SelectValue placeholder="Select Language" />

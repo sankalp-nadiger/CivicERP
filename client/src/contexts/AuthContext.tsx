@@ -42,13 +42,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     // Check for stored auth data
     const storedUser = localStorage.getItem('civicerc_user');
+    const storedToken = localStorage.getItem('auth_token');
     if (storedUser) {
       try {
-        setUser(JSON.parse(storedUser));
-        setIsAuthenticated(true);
+        // Treat token as the source of truth for API auth
+        if (!storedToken) {
+          localStorage.removeItem('civicerc_user');
+          setUser(null);
+          setIsAuthenticated(false);
+        } else {
+          setUser(JSON.parse(storedUser));
+          setIsAuthenticated(true);
+        }
       } catch (error) {
         console.error('Failed to parse stored user:', error);
         localStorage.removeItem('civicerc_user');
+        localStorage.removeItem('auth_token');
       }
     }
     setIsLoading(false);
@@ -74,6 +83,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
     setIsAuthenticated(false);
     localStorage.removeItem('civicerc_user');
+    localStorage.removeItem('auth_token');
   };
 
   return (

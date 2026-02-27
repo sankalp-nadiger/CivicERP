@@ -58,6 +58,11 @@ export const sendCredentialsEmail = async (credentials: EmailCredentials): Promi
   };
 
   try {
+    if (!contactEmail) {
+      console.log('⚠️  Email service not configured; skipping email to', email);
+      return false;
+    }
+    
     await contactEmail.sendMail(mailOptions);
     console.log(`✅ Credentials email sent to ${email}`);
     return true;
