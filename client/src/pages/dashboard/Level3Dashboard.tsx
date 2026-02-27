@@ -13,6 +13,7 @@ import { StatCard, ComplaintCard, AddOfficerDialog, UserListCard } from "@/compo
 import { getScopedComplaints, Complaint as ApiComplaint } from "@/services/complaintService";
 import * as governanceService from "@/services/governanceService";
 import { ComplaintsTable } from "@/components/dashboard/shared/ComplaintsTable";
+import { ComplaintsHeatmap } from "@/components/dashboard/shared/ComplaintsHeatmap";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -221,7 +222,7 @@ export default function Level3Dashboard() {
               <TabsTrigger value="team">{t("dashboard.officers", "Officers")}</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="overview">
+            <TabsContent value="overview" className="space-y-4">
               <Card>
                 <CardHeader>
                   <CardTitle>{t('dashboard.sections.areaSummary', 'Area Summary')}</CardTitle>
@@ -241,6 +242,11 @@ export default function Level3Dashboard() {
                   </div>
                 </CardContent>
               </Card>
+
+              <ComplaintsHeatmap
+                complaints={apiComplaints}
+                title={t("dashboard.heatmap.title", "Complaints Heatmap")}
+              />
             </TabsContent>
 
             <TabsContent value="complaints">

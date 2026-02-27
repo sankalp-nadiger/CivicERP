@@ -178,7 +178,7 @@ class ComplaintController {
     }
 
     async addComplaint(req: Request, res: Response) {
-        const { uuid, complaint, complaint_proof, issue_category, title, location, departmentId: explicitDepartmentId, areaId: explicitAreaId } = req.body;
+        const { uuid, complaint, complaint_proof, issue_category, title, location, departmentId: explicitDepartmentId, areaId: explicitAreaId, summarized_complaint: clientSummarized } = req.body;
         try {
             let mycomplaint = new Complaint()
             let user = await User.findOne({ uuid })
@@ -196,42 +196,84 @@ class ComplaintController {
             let complaint_to_be_added = complaint;
             
             // ML model calls
-            try {
-                let response = await axios.post('http://127.0.0.1:5002/getSummary', {
-                    message: complaint_to_be_added
-                }, {
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-        
-                let data = response.data;
-                mycomplaint.summarized_complaint = data.summary;
+            let summaryAssigned = false;
+            let priorityAssigned = false;
 
-                // Get score and normalize
-                response = await axios.post('http://127.0.0.1:5002/getScore', {
-                    complaint: complaint_to_be_added
-                }, {
-                    headers: {
-                        'Content-Type': 'application/json'
+            // If client provided a summarized_complaint, prefer it
+            if (clientSummarized && typeof clientSummarized === 'string' && clientSummarized.trim()) {
+                mycomplaint.summarized_complaint = clientSummarized.trim();
+                summaryAssigned = true;
+            }
+
+            try {
+                // Only call ML summary if we don't already have one
+                if (!summaryAssigned) {
+                    let response = await axios.post('http://127.0.0.1:5002/getSummary', {
+                        message: complaint_to_be_added
+                    }, {
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    let data = response.data;
+                    if (data && data.summary && String(data.summary).trim()) {
+                        mycomplaint.summarized_complaint = String(data.summary).trim();
+                        summaryAssigned = true;
                     }
-                });
-                data = response.data;
-                let score = data.index;
-                let mylist=issue_category;
-                response = await axios.post('http://127.0.0.1:5002/normalize', {
-                    score: score,
-                    categories: mylist,
-                }, {
-                    headers: {
-                        'Content-Type': 'application/json'
+                }
+
+                // Get score and normalize (optional)
+                try {
+                    let response = await axios.post('http://127.0.0.1:5002/getScore', {
+                        complaint: complaint_to_be_added
+                    }, {
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    let data = response.data;
+                    let score = data.index;
+                    let mylist = issue_category;
+                    response = await axios.post('http://127.0.0.1:5002/normalize', {
+                        score: score,
+                        categories: mylist,
+                    }, {
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    data = response.data;
+                    if (data && data.complaint_severity_score != null) {
+                        mycomplaint.priority_factor = data.complaint_severity_score;
+                        priorityAssigned = true;
                     }
-                });
-                data = response.data;
-                mycomplaint.priority_factor = data.complaint_severity_score;
-                console.log(mycomplaint.priority_factor)
+                    console.log('Priority set from ML:', mycomplaint.priority_factor)
+                } catch (innerErr) {
+                    console.log('ML scoring/normalize failed:', innerErr);
+                }
             } catch (e) {
-                console.log("Error:", e);
+                console.log("Summary ML Error:", e);
+            }
+
+            // Ensure required summarized_complaint is always set (fallback)
+            if (!summaryAssigned) {
+                // Use the first sentence or a truncated complaint as a sensible fallback
+                let fallback = '';
+                try {
+                    const firstSentence = String(complaint_to_be_added).split(/\.|\n/).map(s=>s.trim()).filter(Boolean)[0];
+                    fallback = firstSentence || String(complaint_to_be_added).trim();
+                } catch (_) {
+                    fallback = String(complaint_to_be_added).trim();
+                }
+                if (fallback.length > 200) fallback = fallback.substring(0, 200) + '...';
+                mycomplaint.summarized_complaint = fallback;
+            }
+
+            // Ensure priority_factor is set to a reasonable default if ML failed
+            if (!priorityAssigned) {
+                // Default medium priority
+                mycomplaint.priority_factor = typeof mycomplaint.priority_factor === 'number' && mycomplaint.priority_factor > 0 ? mycomplaint.priority_factor : 0.5;
             }
 
             // Save complaint

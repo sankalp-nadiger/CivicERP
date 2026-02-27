@@ -43,6 +43,7 @@ import {
 } from "recharts";
 import { Users, Building2, MapPin, FileText, Plus, AlertCircle, CheckCircle, Trash2 } from "lucide-react";
 import { ComplaintsTable } from "@/components/dashboard/shared/ComplaintsTable";
+import { ComplaintsHeatmap } from "@/components/dashboard/shared/ComplaintsHeatmap";
 import { getAllComplaints, Complaint as ApiComplaint } from "@/services/complaintService";
 import * as governanceService from "@/services/governanceService";
 import {
@@ -389,60 +390,67 @@ export default function Level1Dashboard() {
           <div className="space-y-4">
             {/* Overview Section */}
             {activeSection === 'overview' && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Complaint Status Chart */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>{t("level1.charts.complaintStatusDistribution", "Complaint Status Distribution")}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {complaintStatusData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={complaintStatusData}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="name" />
-                          <YAxis />
-                          <Tooltip />
-                          <Bar dataKey="value" fill="#3b82f6" />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <p className="text-sm text-gray-500 text-center py-8">{t("level1.empty.noComplaintsYet", "No complaints yet")}</p>
-                    )}
-                  </CardContent>
-                </Card>
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Complaint Status Chart */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>{t("level1.charts.complaintStatusDistribution", "Complaint Status Distribution")}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {complaintStatusData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height={300}>
+                          <BarChart data={complaintStatusData}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="name" />
+                            <YAxis />
+                            <Tooltip />
+                            <Bar dataKey="value" fill="#3b82f6" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <p className="text-sm text-gray-500 text-center py-8">{t("level1.empty.noComplaintsYet", "No complaints yet")}</p>
+                      )}
+                    </CardContent>
+                  </Card>
 
-                {/* SLA Status Chart */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>{t("level1.charts.priorityDistribution", "Priority Distribution")}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {priorityData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                          <Pie
-                            data={priorityData}
-                            cx="50%"
-                            cy="50%"
-                            labelLine={false}
-                            label={({ name, value }) => `${name}: ${value}`}
-                            outerRadius={100}
-                            fill="#8884d8"
-                            dataKey="value"
-                          >
-                            {priorityData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <p className="text-sm text-gray-500 text-center py-8">{t("common.noData", "No data available")}</p>
-                    )}
-                  </CardContent>
-                </Card>
+                  {/* Priority Distribution */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>{t("level1.charts.priorityDistribution", "Priority Distribution")}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {priorityData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height={300}>
+                          <PieChart>
+                            <Pie
+                              data={priorityData}
+                              cx="50%"
+                              cy="50%"
+                              labelLine={false}
+                              label={({ name, value }) => `${name}: ${value}`}
+                              outerRadius={100}
+                              fill="#8884d8"
+                              dataKey="value"
+                            >
+                              {priorityData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                              ))}
+                            </Pie>
+                            <Tooltip />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <p className="text-sm text-gray-500 text-center py-8">{t("common.noData", "No data available")}</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <ComplaintsHeatmap
+                  complaints={apiComplaints}
+                  title={t("dashboard.heatmap.title", "Complaints Heatmap")}
+                />
               </div>
             )}
 

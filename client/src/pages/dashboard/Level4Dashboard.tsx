@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next";
 import { useToast } from "@/hooks/use-toast";
 import { getScopedComplaints, Complaint as ApiComplaint } from "@/services/complaintService";
 import { ComplaintsTable } from "@/components/dashboard/shared/ComplaintsTable";
+import { ComplaintsHeatmap } from "@/components/dashboard/shared/ComplaintsHeatmap";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { StatCard, ComplaintCard } from "@/components/dashboard/DashboardComponents";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -172,6 +173,13 @@ export default function Level4Dashboard() {
               </CardContent>
             </Card>
           )}
+
+          <div className="mb-8">
+            <ComplaintsHeatmap
+              complaints={apiComplaints}
+              title={t("dashboard.heatmap.title", "Complaints Heatmap")}
+            />
+          </div>
 
           <Tabs defaultValue="complaints" className="space-y-4">
             <TabsList>

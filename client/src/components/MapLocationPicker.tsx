@@ -19,14 +19,21 @@ const MapLocationPicker: React.FC<MapLocationPickerProps> = ({ onLocationSelect,
   const [useManualAddress, setUseManualAddress] = useState(false);
   const [manualAddress, setManualAddress] = useState(initialLocation || '');
 
+  const apiKey = (import.meta as any).env?.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
+
   // Try to load maps without API key first (will fail gracefully)
   const tryInitializeMap = async () => {
     if (!mapRef.current || useManualAddress) return;
 
+    // If no key is configured, skip Maps JS and use manual entry.
+    if (!apiKey || !String(apiKey).trim()) {
+      setUseManualAddress(true);
+      return;
+    }
+
     try {
-      // Try with a public key or fallback
       const loader = new Loader({
-        apiKey: 'AIzaSyBEarADJe4JGPVHU-XG_0h5c6R3YhK8oAo', // Public demo key
+        apiKey: String(apiKey).trim(),
         version: 'weekly',
         libraries: ['places', 'geocoding']
       });

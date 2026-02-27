@@ -310,4 +310,4 @@ Edit SLA deadlines in TaskCard and ContractorTaskManager:
 
 ## 📄 License
 
-Part of the Incognito Complaint Box CivicERP System.
+Part of the CivicERP System.

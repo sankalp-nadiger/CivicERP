@@ -18,6 +18,7 @@ import {
 } from "@/components/dashboard/DashboardComponents";
 import { getAllComplaints, Complaint as ApiComplaint } from "@/services/complaintService";
 import { ComplaintsTable } from "@/components/dashboard/shared/ComplaintsTable";
+import { ComplaintsHeatmap } from "@/components/dashboard/shared/ComplaintsHeatmap";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -443,6 +444,11 @@ export default function Level2Dashboard() {
                   </CardContent>
                 </Card>
               </div>
+
+              <ComplaintsHeatmap
+                complaints={departmentComplaints}
+                title={t("dashboard.heatmap.title", "Complaints Heatmap")}
+              />
             </TabsContent>
 
             {/* Complaints */}

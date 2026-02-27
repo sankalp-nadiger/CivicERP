@@ -1,0 +1,285 @@
+{
+  "dashboard": {
+    "title": "डैशबोर्ड",
+    "overview": "सारांश",
+    "departments": "विभाग",
+    "contractors": "ठेकेदार",
+    "complaints": "शिकायतें",
+    "history": "इतिहास",
+    "settings": "सेटिंग्स",
+    "zones": "ज़ोन",
+    "taluks": "तालुका",
+    "wards": "वार्ड",
+    "villages": "गांव",
+    "users": "उपयोगकर्ता",
+    "myComplaints": "मेरी शिकायतें",
+    "myWard": "मेरा वार्ड",
+    "myVillage": "मेरा गांव",
+    "slaStatus": "SLA स्थिति",
+    "team": "टीम",
+    "officers": "अधिकारी",
+    "executors": "असाइन किए गए कार्यकर्ता"
+  },
+  "mcc": {
+    "welcome": "नगर आयुक्त डैशबोर्ड",
+    "departmentManagement": "विभाग प्रबंधन",
+    "addDepartment": "विभाग जोड़ें",
+    "editDepartment": "विभाग संपादित करें",
+    "deleteDepartment": "विभाग हटाएं",
+    "departmentName": "विभाग का नाम",
+    "departmentHead": "विभाग प्रमुख",
+    "sendSignupLink": "साइनअप लिंक भेजें",
+    "inviteSystem": "आमंत्रण प्रणाली",
+    "cityWideAnalytics": "शहर-व्यापी विश्लेषण",
+    "slaCompliance": "SLA अनुपालन",
+    "bottleneckDetection": "अड़चन पहचान",
+    "viewDetails": "विवरण देखें"
+  },
+  "departmentHead": {
+    "welcome": "विभाग प्रमुख डैशबोर्ड",
+    "contractorManagement": "ठेकेदार प्रबंधन",
+    "taskAssignment": "कार्य असाइनमेंट",
+    "progressTracking": "प्रगति ट्रैकिंग",
+    "searchContractors": "ठेकेदारों को खोजें...",
+    "availabilityStatus": "उपलब्धता स्थिति",
+    "free": "मुक्त",
+    "occupied": "व्यस्त",
+    "assignTask": "कार्य असाइन करें",
+    "selectComplaint": "शिकायत चुनें",
+    "selectContractor": "ठेकेदार चुनें"
+  },
+  "stages": {
+    "intake": "स्वीकृति",
+    "fieldwork": "क्षेत्र कार्य",
+    "verification": "सत्यापन",
+    "approval": "स्वीकृति",
+    "completed": "पूर्ण"
+  },
+  "sla": {
+    "timer": "SLA टाइमर",
+    "deadline": "समय सीमा",
+    "daysRemaining": "शेष दिन",
+    "hoursRemaining": "शेष घंटे",
+    "overdue": "अतिदेय"
+  },
+  "auditLog": {
+    "workHistory": "कार्य इतिहास",
+    "chronological": "कालानुक्रमिक क्रियाएं",
+    "action": "क्रिया",
+    "performer": "द्वारा किया गया",
+    "timestamp": "समय मुहर",
+    "changes": "परिवर्तन"
+  },
+  "common": {
+    "add": "जोड़ें",
+    "edit": "संपादित करें",
+    "delete": "हटाएं",
+    "active": "सक्रिय",
+    "save": "सहेजें",
+    "cancel": "रद्द करें",
+    "search": "खोज",
+    "filter": "फ़िल्टर",
+    "export": "निर्यात",
+    "loading": "लोड हो रहा है...",
+    "noData": "कोई डेटा उपलब्ध नहीं",
+    "success": "सफलता",
+    "error": "त्रुटि",
+    "logout": "लॉग आउट",
+    "language": "भाषा"
+  },
+  "governance": {
+    "platform": "शासन मंच",
+    "cityCorporation": "नगर निगम",
+    "cityMunicipalCorporation": "नगर निगम",
+    "panchayat": "पंचायत",
+    "navigation": "नेविगेशन"
+  },
+  "roles": {
+    "city": {
+      "LEVEL_1": "नगर आयुक्त",
+      "LEVEL_2": "विभाग प्रमुख",
+      "LEVEL_3": "ज़ोन अधिकारी"
+    },
+    "panchayat": {
+      "LEVEL_1": "जिला पंचायत सीईओ",
+      "LEVEL_2": "जिला कार्यक्रम अधिकारी",
+      "LEVEL_3": "पंचायत विकास अधिकारी"
+    }
+  },
+  "level1": {
+    "heading": "{{role}} {{dashboard}}",
+    "subtitle": "{{scope}} संचालन प्रबंधित करें",
+    "stats": {
+      "totalComplaints": "कुल शिकायतें",
+      "openComplaints": "खुली शिकायतें",
+      "closedTotal": "बंद (कुल)"
+    },
+    "charts": {
+      "complaintStatusDistribution": "शिकायत स्थिति वितरण",
+      "priorityDistribution": "प्राथमिकता वितरण"
+    },
+    "empty": {
+      "noComplaintsYet": "अभी कोई शिकायत नहीं"
+    },
+    "loadingComplaints": "शिकायतें लोड हो रही हैं...",
+    "departments": {
+      "count_one": "{{count}} विभाग",
+      "count_other": "{{count}} विभाग",
+      "empty": "अभी तक कोई विभाग नहीं बनाया गया"
+    },
+    "areas": {
+      "title": "क्षेत्र",
+      "count_one": "{{count}} क्षेत्र",
+      "count_other": "{{count}} क्षेत्र",
+      "empty": "अभी तक कोई क्षेत्र नहीं बनाया गया"
+    },
+    "officers": {
+      "addTitle": "अधिकारी जोड़ें",
+      "addDescription": "सिस्टम में नए अधिकारियों को आमंत्रित करें"
+    },
+    "users": {
+      "level2Title": "{{role}}",
+      "level3Title": "{{role}}"
+    },
+    "deleteDialog": {
+      "title": "क्या आप सुनिश्चित हैं?",
+      "descriptionPrefix": "यह स्थायी रूप से हटाएगा",
+      "descriptionSuffix": "यह क्रिया वापस नहीं की जा सकती।"
+    },
+    "toast": {
+      "fetchComplaintsFailed": "डेटाबेस से शिकायतें प्राप्त करने में विफल",
+      "departmentCreatedTitle": "विभाग सफलतापूर्वक बनाया गया!",
+      "departmentCreatedEmailSent": "{{name}} बनाया गया है। लॉगिन विवरण {{email}} पर भेज दिए गए हैं",
+      "departmentCreatedEmailUnavailable": "{{name}} बनाया गया है। ईमेल सेवा उपलब्ध नहीं - विवरण लॉग किए गए।",
+      "errorCreatingDepartmentTitle": "विभाग बनाने में त्रुटि",
+      "officerAddedTitle": "अधिकारी सफलतापूर्वक जोड़ा गया!",
+      "officerAddedEmailSent": "{{name}} जोड़ा गया है। लॉगिन विवरण {{email}} पर भेज दिए गए हैं",
+      "officerAddedEmailUnavailable": "{{name}} जोड़ा गया है। ईमेल सेवा उपलब्ध नहीं - विवरण लॉग किए गए।",
+      "errorAddingOfficerTitle": "अधिकारी जोड़ने में त्रुटि",
+      "departmentDeletedTitle": "विभाग हटाया गया",
+      "areaDeletedTitle": "क्षेत्र हटाया गया",
+      "userDeletedTitle": "उपयोगकर्ता हटाया गया",
+      "itemRemoved": "{{name}} सफलतापूर्वक हटाया गया।",
+      "deleteFailed": "आइटम हटाने में विफल। कृपया पुनः प्रयास करें।"
+    },
+    "errors": {
+      "createDepartmentFailed": "विभाग बनाने में विफल।",
+      "addOfficerFailed": "अधिकारी जोड़ने में विफल।"
+    }
+  },
+  "dashboardComponents": {
+    "fields": {
+      "departmentName": "विभाग का नाम",
+      "description": "विवरण",
+      "authorizedContactPerson": "अधिकृत संपर्क व्यक्ति",
+      "fullName": "पूरा नाम",
+      "emailAddress": "ईमेल पता",
+      "phoneNumber": "फोन नंबर",
+      "department": "विभाग",
+      "area": "क्षेत्र"
+    },
+    "placeholders": {
+      "departmentName": "उदा., जल आपूर्ति और स्वच्छता",
+      "departmentDescription": "विभाग की जिम्मेदारियों का संक्षिप्त विवरण",
+      "fullName": "उदा., अमित शर्मा",
+      "email": "उदा., amit.sharma@gov.in",
+      "phone": "उदा., +91 9876543210"
+    },
+    "hints": {
+      "credentialsSentToEmail": "लॉगिन विवरण इस ईमेल पर भेजे जाएंगे"
+    },
+    "createDepartmentDialog": {
+      "trigger": "विभाग बनाएं",
+      "title": "नया विभाग बनाएं",
+      "description": "एक नया विभाग जोड़ें और एक अधिकृत संपर्क व्यक्ति असाइन करें। लॉगिन विवरण स्वचालित रूप से बनाए जाएंगे और दिए गए ईमेल पर भेजे जाएंगे।",
+      "submit": "विभाग बनाएं और विवरण भेजें"
+    },
+    "userList": {
+      "count_one": "{{count}} उपयोगकर्ता",
+      "count_other": "{{count}} उपयोगकर्ता",
+      "empty": "अभी कोई उपयोगकर्ता नहीं",
+      "delete": "हटाएं"
+    },
+    "addOfficerDialog": {
+      "trigger": "{{roleTitle}} जोड़ें",
+      "title": "नया {{roleTitle}} जोड़ें",
+      "description": "एक नया {{roleTitle}} खाता बनाएं। लॉगिन विवरण स्वचालित रूप से बनाए जाएंगे और दिए गए ईमेल पर भेजे जाएंगे।",
+      "selectDepartment": "विभाग चुनें",
+      "selectArea": "क्षेत्र चुनें",
+      "submit": "{{roleTitle}} जोड़ें और विवरण भेजें"
+    }
+  },
+  "language": {
+    "en": "English",
+    "hi": "हिंदी",
+    "kn": "ಕನ್ನಡ"
+  },
+  "complaintsTable": {
+    "title": "सभी शिकायतें",
+    "searchPlaceholder": "शिकायतें खोजें...",
+    "filterPlaceholder": "स्थिति के अनुसार फ़िल्टर करें",
+    "empty": "कोई शिकायत नहीं मिली",
+    "untitled": "शीर्षक नहीं",
+    "view": "देखें",
+    "detailsTitle": "शिकायत विवरण",
+    "detailsIdPrefix": "आईडी",
+    "showing": "{{shown}} / {{total}} शिकायतें दिखा रहा है",
+    "na": "उपलब्ध नहीं",
+    "anonymous": "गुमनाम",
+    "statusLabel": "स्थिति",
+    "by": "द्वारा",
+    "unknown": "अज्ञात",
+    "viewProof": "प्रमाण दस्तावेज़ देखें",
+    "columns": {
+      "complaintId": "शिकायत आईडी",
+      "title": "शीर्षक",
+      "category": "श्रेणी",
+      "status": "स्थिति",
+      "priority": "प्राथमिकता",
+      "date": "तारीख",
+      "actions": "क्रियाएँ"
+    },
+    "fields": {
+      "title": "शीर्षक",
+      "raisedBy": "द्वारा उठाई गई",
+      "priorityFactor": "प्राथमिकता कारक",
+      "lastUpdated": "अंतिम अपडेट",
+      "location": "स्थान",
+      "categories": "श्रेणियाँ",
+      "fullComplaint": "पूरी शिकायत",
+      "aiSummary": "AI सारांश",
+      "proof": "प्रमाण",
+      "commentHistory": "टिप्पणी इतिहास"
+    },
+    "status": {
+      "all": "सभी स्थितियाँ",
+      "todo": "करना है",
+      "inProgress": "प्रगति में",
+      "underInvestigation": "जांच के तहत",
+      "completed": "पूर्ण",
+      "resolved": "सुलझाई गई"
+    },
+    "priority": {
+      "high": "उच्च",
+      "medium": "मध्यम",
+      "low": "निम्न"
+    },
+    "updateStatus": {
+      "title": "स्थिति अपडेट करें",
+      "newStatus": "नई स्थिति",
+      "comments": "टिप्पणियाँ",
+      "commentsPlaceholder": "इस स्थिति अपडेट के बारे में टिप्पणी जोड़ें...",
+      "updating": "अपडेट हो रहा है...",
+      "submit": "स्थिति अपडेट करें"
+    },
+    "toast": {
+      "statusUpdatedTitle": "स्थिति अपडेट हो गई",
+      "statusUpdatedDesc": "शिकायत की स्थिति सफलतापूर्वक अपडेट हो गई",
+      "updateFailedTitle": "अपडेट विफल",
+      "updateFailedDesc": "शिकायत की स्थिति अपडेट नहीं हो सकी"
+    }
+  }
+  ,"map": {
+    "openInGoogleMaps": "Google Maps में खोलें"
+  }
+}

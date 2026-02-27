@@ -2,6 +2,7 @@ import { createRoot } from 'react-dom/client'
 import i18n from './locales/i18n'
 import { I18nextProvider } from 'react-i18next'
 import App from './App.tsx'
+import 'leaflet/dist/leaflet.css'
 import './index.css'
 import React from "react";
 import ReactDOM from "react-dom/client";
