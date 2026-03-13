@@ -6,7 +6,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useGovernance } from "@/contexts/GovernanceContext";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTranslation } from "react-i18next";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
@@ -54,6 +54,7 @@ import { Users, FileText, AlertCircle, TrendingUp, Plus } from "lucide-react";
 
 export default function Level2Dashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const { user: authUser } = useAuth();
   const { t } = useTranslation();
@@ -77,6 +78,7 @@ export default function Level2Dashboard() {
   const [apiComplaints, setApiComplaints] = useState<ApiComplaint[]>([]);
   const [isLoadingComplaints, setIsLoadingComplaints] = useState(true);
   const [myDepartmentFromApi, setMyDepartmentFromApi] = useState<governanceService.BackendDepartment | null>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'complaints' | 'zones'>('overview');
 
   const authEmail = (authUser?.email || '').trim().toLowerCase();
   const authGovLevel = (authUser?.governanceLevel || '').toString().trim().toUpperCase();
@@ -91,8 +93,8 @@ export default function Level2Dashboard() {
     } catch (error) {
       console.error('Failed to fetch complaints:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to fetch complaints from the database',
+        title: t('common.error', 'Error'),
+        description: t('level2.toast.fetchComplaintsFailed', 'Failed to fetch complaints from the database'),
         variant: 'destructive',
       });
     } finally {
@@ -114,6 +116,22 @@ export default function Level2Dashboard() {
       { label: parentLabel, path: "/dashboard/level2/zones", icon: <Users className="w-4 h-4" /> }
     ];
   }, [governanceType, t]);
+
+  const parentLabel = React.useMemo(() => {
+    const hierarchy = getAreaHierarchy(governanceType);
+    return hierarchy.parent === "ZONE" ? t("dashboard.zones", "Zones") : t("dashboard.taluks", "Taluks");
+  }, [governanceType, t]);
+
+  const getActiveTabFromPath = React.useCallback((): 'overview' | 'complaints' | 'zones' => {
+    const path = location.pathname;
+    if (path.includes('/complaints')) return 'complaints';
+    if (path.includes('/zones')) return 'zones';
+    return 'overview';
+  }, [location.pathname]);
+
+  React.useEffect(() => {
+    setActiveTab(getActiveTabFromPath());
+  }, [getActiveTabFromPath]);
 
   // Set governance currentUser from authenticated user (prevents using seeded dummy Dept Head users)
   React.useEffect(() => {
@@ -137,7 +155,7 @@ export default function Level2Dashboard() {
 
     const newUser = {
       id: generateUserId(),
-      name: myDepartmentFromApi?.contactPerson || authUser?.name || 'Department Head',
+      name: myDepartmentFromApi?.contactPerson || authUser?.name || t('level2.misc.departmentHeadFallback', 'Department Head'),
       email: authUser?.email || authEmail,
       level: 'LEVEL_2' as const,
       governanceType,
@@ -210,12 +228,53 @@ export default function Level2Dashboard() {
     return null;
   }
 
+  const governanceKey = governanceType.toLowerCase() as 'city' | 'panchayat';
+  const level2RoleLabel = t(
+    `roles.${governanceKey}.LEVEL_2`,
+    getLevelDisplayName(governanceType, 'LEVEL_2')
+  );
+  const level3RoleLabel = t(
+    `roles.${governanceKey}.LEVEL_3`,
+    getLevelDisplayName(governanceType, 'LEVEL_3')
+  );
+
   // Department of current user
   const myDepartment = departments.find(d => d.id === currentUser.department);
 
   const resolvedDepartmentName = myDepartmentFromApi?.name || myDepartment?.name;
   const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
   const resolvedDepartmentNeedle = resolvedDepartmentName ? normalize(resolvedDepartmentName) : null;
+  const resolvedDepartmentId = (myDepartmentFromApi?._id || '').toString().trim();
+
+  const departmentKeywords = React.useMemo(() => {
+    if (!resolvedDepartmentNeedle) return [] as string[];
+    const stop = new Set(['department', 'dept', 'office', 'division', 'unit', 'of', 'and', 'the']);
+    return resolvedDepartmentNeedle
+      .split(' ')
+      .map(s => s.trim())
+      .filter(Boolean)
+      .filter(w => !stop.has(w))
+      .filter(w => w.length >= 4);
+  }, [resolvedDepartmentNeedle]);
+
+  const departmentAliasKeywords = React.useMemo(() => {
+    // Minimal, targeted aliasing to ensure common complaint wording maps to departments.
+    // Electricity often receives "street light" complaints even if categories don't say "Electricity".
+    if (!resolvedDepartmentNeedle) return [] as string[];
+    if (resolvedDepartmentNeedle.includes('electricity')) {
+      return [
+        'street light',
+        'street lighting',
+        'lighting',
+        'light',
+        'power',
+        'meter',
+        'billing',
+        'transformer',
+      ];
+    }
+    return [] as string[];
+  }, [resolvedDepartmentNeedle]);
 
   const myComplaints = myDepartment
     ? getComplaintsByDepartment(complaints, myDepartment.id)
@@ -224,20 +283,42 @@ export default function Level2Dashboard() {
 
   // Filter complaints by department - match department name with issue categories
   const departmentComplaints = resolvedDepartmentNeedle
-    ? apiComplaints.filter(complaint =>
-        (complaint.issue_category || []).some(category => {
-          const hay = normalize(String(category || ''));
-          return hay.includes(resolvedDepartmentNeedle) || resolvedDepartmentNeedle.includes(hay);
-        })
-      )
+    ? apiComplaints.filter(complaint => {
+        const complaintDeptId = (complaint.departmentId || '').toString().trim();
+        if (resolvedDepartmentId && complaintDeptId && complaintDeptId === resolvedDepartmentId) {
+          return true;
+        }
+
+        const categories = complaint.issue_category || [];
+        const categoryText = normalize(categories.join(' '));
+        const titleText = normalize(String((complaint as any).title || ''));
+        const complaintText = normalize(String((complaint as any).complaint || ''));
+        const summaryText = normalize(String((complaint as any).summarized_complaint || ''));
+        const haystack = [categoryText, titleText, complaintText, summaryText].filter(Boolean).join(' ');
+
+        if (!haystack) return false;
+        if (haystack.includes(resolvedDepartmentNeedle)) return true;
+
+        const allKeywords = [...departmentKeywords, ...departmentAliasKeywords].filter(Boolean);
+        return allKeywords.some(k => {
+          const needle = normalize(k);
+          if (!needle) return false;
+          return haystack.includes(needle);
+        });
+      })
     : apiComplaints;
 
-  // Calculate stats from filtered API complaints
+  const visibleDepartmentComplaints = departmentComplaints.filter(c => {
+    const s = String(c.status || '').toLowerCase();
+    return !s.includes('resolved');
+  });
+
+  // Calculate stats from the same list shown in the table (resolved items are hidden)
   const apiStats = {
-    total: departmentComplaints.length,
-    open: departmentComplaints.filter(c => c.status.toLowerCase().includes('todo') || c.status.toLowerCase().includes('registered')).length,
-    inProgress: departmentComplaints.filter(c => c.status.toLowerCase().includes('progress') || c.status.toLowerCase().includes('investigation')).length,
-    closed: departmentComplaints.filter(c => c.status.toLowerCase().includes('completed') || c.status.toLowerCase().includes('resolved')).length,
+    total: visibleDepartmentComplaints.length,
+    open: visibleDepartmentComplaints.filter(c => c.status.toLowerCase().includes('todo') || c.status.toLowerCase().includes('registered')).length,
+    inProgress: visibleDepartmentComplaints.filter(c => c.status.toLowerCase().includes('progress') || c.status.toLowerCase().includes('investigation')).length,
+    closed: visibleDepartmentComplaints.filter(c => c.status.toLowerCase().includes('completed') || c.status.toLowerCase().includes('resolved')).length,
   };
   const subordinates = getSubordinates(users, currentUser.id);
 
@@ -308,10 +389,18 @@ export default function Level2Dashboard() {
       addUser(newUser);
 
       toast({
-        title: "Officer Added Successfully!",
+        title: t('level2.toast.officerAddedTitle', 'Officer Added Successfully!'),
         description: result.emailSent
-          ? `${data.name} has been added. Login credentials sent to ${data.email}`
-          : `${data.name} has been added. Email service unavailable - credentials logged.`,
+          ? t(
+              'level2.toast.officerAddedEmailSent',
+              '{{name}} has been added. Login credentials sent to {{email}}',
+              { name: data.name, email: data.email }
+            )
+          : t(
+              'level2.toast.officerAddedEmailUnavailable',
+              '{{name}} has been added. Email service unavailable - credentials logged.',
+              { name: data.name }
+            ),
         variant: result.emailSent ? "default" : "destructive",
       });
 
@@ -319,9 +408,9 @@ export default function Level2Dashboard() {
         console.log('Generated credentials (Email not sent):', result.credentials);
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to add officer.';
+      const message = error instanceof Error ? error.message : t('level2.errors.addOfficerFailed', 'Failed to add officer.');
       toast({
-        title: "Error Adding Officer",
+        title: t('level2.toast.errorAddingOfficerTitle', 'Error Adding Officer'),
         description: message,
         variant: "destructive",
       });
@@ -329,23 +418,63 @@ export default function Level2Dashboard() {
     }
   };
 
-  // Prepare chart data from department complaints
-  const dailyComplaints = Array.from({ length: 7 }, (_, i) => {
-    const dayComplaints = departmentComplaints.filter(c => {
-      const date = new Date(c.date);
-      const daysAgo = Math.floor((Date.now() - date.getTime()) / (1000 * 60 * 60 * 24));
-      return daysAgo === (6 - i);
-    });
-    
-    return {
-      day: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][i],
-      received: dayComplaints.length,
-      resolved: dayComplaints.filter(c => 
-        c.status.toLowerCase().includes('completed') || 
-        c.status.toLowerCase().includes('resolved')
-      ).length
+  // Prepare chart data from department complaints.
+  // Buckets by the last 7 calendar days (oldest -> newest) in local time.
+  // "received" is counted by complaint creation date (`date`),
+  // "resolved" is counted by last update date (`lastupdate`) for currently resolved complaints.
+  const dailyComplaints = React.useMemo(() => {
+    const dayLabels = [
+      t('days.sunShort', 'Sun'),
+      t('days.monShort', 'Mon'),
+      t('days.tueShort', 'Tue'),
+      t('days.wedShort', 'Wed'),
+      t('days.thuShort', 'Thu'),
+      t('days.friShort', 'Fri'),
+      t('days.satShort', 'Sat'),
+    ];
+
+    const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const dayKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const isResolved = (status: unknown) => {
+      const s = String(status || '').toLowerCase();
+      return s.includes('resolved') || s.includes('completed');
     };
-  });
+
+    const todayStart = startOfDay(new Date());
+    const days = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(todayStart);
+      d.setDate(todayStart.getDate() - (6 - i));
+      return d;
+    });
+
+    const receivedByDay = new Map<string, number>();
+    const resolvedByDay = new Map<string, number>();
+
+    for (const complaint of departmentComplaints) {
+      const createdAt = new Date((complaint as any).date ?? (complaint as any).lastupdate);
+      if (!Number.isNaN(createdAt.getTime())) {
+        const key = dayKey(createdAt);
+        receivedByDay.set(key, (receivedByDay.get(key) || 0) + 1);
+      }
+
+      if (isResolved((complaint as any).status)) {
+        const updatedAt = new Date((complaint as any).lastupdate ?? (complaint as any).date);
+        if (!Number.isNaN(updatedAt.getTime())) {
+          const key = dayKey(updatedAt);
+          resolvedByDay.set(key, (resolvedByDay.get(key) || 0) + 1);
+        }
+      }
+    }
+
+    return days.map(d => {
+      const key = dayKey(d);
+      return {
+        day: dayLabels[d.getDay()] || key,
+        received: receivedByDay.get(key) || 0,
+        resolved: resolvedByDay.get(key) || 0,
+      };
+    });
+  }, [departmentComplaints, t]);
 
   const statusBreakdown = [
     { name: t('dashboard.stats.open', 'Open'), value: apiStats.open },
@@ -362,7 +491,7 @@ export default function Level2Dashboard() {
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900">
-              {getLevelDisplayName(governanceType, "LEVEL_2")} {t('dashboard.title', 'Dashboard')}
+              {level2RoleLabel} {t('dashboard.title', 'Dashboard')}
             </h1>
             <p className="text-gray-600 mt-1">
               {t('dashboard.labels.department', 'Department')}: <strong>{resolvedDepartmentName || t('dashboard.misc.notAssigned', 'Not assigned')}</strong>
@@ -394,11 +523,21 @@ export default function Level2Dashboard() {
           </div>
 
           {/* Tabs */}
-          <Tabs defaultValue="overview" className="space-y-4">
+          <Tabs
+            value={activeTab}
+            onValueChange={(value) => {
+              const next = (value || 'overview') as 'overview' | 'complaints' | 'zones';
+              setActiveTab(next);
+              if (next === 'complaints') navigate('/dashboard/level2/complaints');
+              else if (next === 'zones') navigate('/dashboard/level2/zones');
+              else navigate('/dashboard/level2');
+            }}
+            className="space-y-4"
+          >
             <TabsList>
               <TabsTrigger value="overview">{t('dashboard.overview', 'Overview')}</TabsTrigger>
               <TabsTrigger value="complaints">{t('dashboard.complaints', 'Complaints')}</TabsTrigger>
-              <TabsTrigger value="team">{t('dashboard.myTeam', 'My Team')}</TabsTrigger>
+              <TabsTrigger value="zones">{parentLabel}</TabsTrigger>
             </TabsList>
 
             {/* Overview */}
@@ -413,11 +552,21 @@ export default function Level2Dashboard() {
                       <LineChart data={dailyComplaints}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="day" />
-                        <YAxis />
+                        <YAxis allowDecimals={false} />
                         <Tooltip />
                         <Legend />
-                        <Line type="monotone" dataKey="received" stroke="#3b82f6" />
-                        <Line type="monotone" dataKey="resolved" stroke="#10b981" />
+                        <Line
+                          type="monotone"
+                          dataKey="received"
+                          name={t('level2.charts.received', 'Received')}
+                          stroke="#3b82f6"
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="resolved"
+                          name={t('level2.charts.resolved', 'Resolved')}
+                          stroke="#10b981"
+                        />
                       </LineChart>
                     </ResponsiveContainer>
                   </CardContent>
@@ -433,13 +582,13 @@ export default function Level2Dashboard() {
                         <BarChart data={statusBreakdown}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="name" />
-                          <YAxis />
+                          <YAxis allowDecimals={false} />
                           <Tooltip />
                           <Bar dataKey="value" fill="#3b82f6" />
                         </BarChart>
                       </ResponsiveContainer>
                     ) : (
-                      <p className="text-sm text-gray-500 text-center py-8">{t('dashboard.misc.noData', 'No data')}</p>
+                      <p className="text-sm text-gray-500 text-center py-8">{t('common.noData', 'No data available')}</p>
                     )}
                   </CardContent>
                 </Card>
@@ -456,27 +605,36 @@ export default function Level2Dashboard() {
               {isLoadingComplaints ? (
                 <Card>
                   <CardContent className="py-12 text-center text-gray-500">
-                    {t('dashboard.misc.loadingComplaints', 'Loading complaints...')}
+                    {t('level1.loadingComplaints', 'Loading complaints...')}
                   </CardContent>
                 </Card>
               ) : (
                 <ComplaintsTable 
-                  complaints={departmentComplaints} 
+                  complaints={visibleDepartmentComplaints} 
                   onComplaintUpdate={fetchComplaints}
                 />
               )}
             </TabsContent>
 
-            {/* Team */}
-            <TabsContent value="team" className="space-y-4">
-              <UserListCard users={subordinates} title={`${getLevelDisplayName(governanceType, "LEVEL_3")}s Under You`} />
+            {/* Zones */}
+            <TabsContent value="zones" className="space-y-4">
+              <UserListCard
+                users={subordinates}
+                title={t('level2.team.underYouTitle', '{{role}}s Under You', {
+                  role: level3RoleLabel,
+                })}
+              />
               <Card>
                 <CardHeader>
-                  <CardTitle>Add {getLevelDisplayName(governanceType, "LEVEL_3")}</CardTitle>
+                  <CardTitle>
+                    {t('level2.team.addOfficerTitle', 'Add {{role}}', {
+                      role: level3RoleLabel,
+                    })}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <AddOfficerDialog
-                    roleTitle={getLevelDisplayName(governanceType, "LEVEL_3")}
+                    roleTitle={level3RoleLabel}
                     areas={(() => {
                       const selectable = areas.filter(a => a.type === "ZONE" || a.type === "TALUK");
                       if ((governanceType || "CITY").toString().toUpperCase() !== "CITY") return selectable;
@@ -500,7 +658,7 @@ export default function Level2Dashboard() {
                     trigger={
                       <Button>
                         <Plus className="w-4 h-4 mr-2" />
-                        Add {getLevelDisplayName(governanceType, "LEVEL_3")}
+                        {t('common.add', 'Add')} {level3RoleLabel}
                       </Button>
                     }
                   />
@@ -516,7 +674,7 @@ export default function Level2Dashboard() {
         <Dialog open={!!selectedComplaint} onOpenChange={() => setSelectedComplaint(null)}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{t('dashboard.actions.updateComplaintStatus', 'Update Complaint Status')}</DialogTitle>
+              <DialogTitle>{t('complaintsTable.updateStatus.title', 'Update Status')}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <p className="text-sm text-gray-600">{t('dashboard.labels.complaint', 'Complaint')}: {selectedComplaint.title}</p>

@@ -1,5 +1,38 @@
 {
   "dashboard": {
+    "title": "Dashboard",
+    "overview": "Overview",
+    "complaints": "Complaints",
+    "team": "Team",
+    "zones": "Zones",
+    "taluks": "Taluks",
+    "labels": {
+      "department": "Department",
+      "complaint": "Complaint"
+    },
+    "misc": {
+      "notAssigned": "Not assigned"
+    },
+    "stats": {
+      "totalComplaints": "Total Complaints",
+      "open": "Open",
+      "inProgress": "In Progress",
+      "closed": "Closed"
+    },
+    "sections": {
+      "dailyTrend": "Daily Trend",
+      "statusBreakdown": "Status Breakdown"
+    },
+    "actions": {
+      "selectNewStatus": "Select new status"
+    },
+    "statusOptions": {
+      "open": "Open",
+      "inProgress": "In Progress",
+      "workDone": "Work Done",
+      "verified": "Verified",
+      "closed": "Closed"
+    },
     "mcc": {
       "title": "市政専門家ダッシュボード",
       "subtitle": "शहर प्रशासन अवलोकन",
@@ -18,6 +51,38 @@
       "tasks": "कार्य",
       "audit": "ऑडिट लॉग",
       "settings": "सेटिंग्स"
+    }
+  },
+  "days": {
+    "monShort": "Mon",
+    "tueShort": "Tue",
+    "wedShort": "Wed",
+    "thuShort": "Thu",
+    "friShort": "Fri",
+    "satShort": "Sat",
+    "sunShort": "Sun"
+  },
+  "level2": {
+    "misc": {
+      "departmentHeadFallback": "Department Head"
+    },
+    "charts": {
+      "received": "Received",
+      "resolved": "Resolved"
+    },
+    "team": {
+      "underYouTitle": "{{role}}s Under You",
+      "addOfficerTitle": "Add {{role}}"
+    },
+    "toast": {
+      "fetchComplaintsFailed": "Failed to fetch complaints from the database",
+      "officerAddedTitle": "Officer Added Successfully!",
+      "officerAddedEmailSent": "{{name}} has been added. Login credentials sent to {{email}}",
+      "officerAddedEmailUnavailable": "{{name}} has been added. Email service unavailable - credentials logged.",
+      "errorAddingOfficerTitle": "Error Adding Officer"
+    },
+    "errors": {
+      "addOfficerFailed": "Failed to add officer."
     }
   },
   "mcc": {

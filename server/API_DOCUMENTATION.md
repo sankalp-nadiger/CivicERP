@@ -278,6 +278,69 @@ All endpoints return appropriate HTTP status codes:
 - `200` - Success
 - `201` - Created
 - `400` - Bad Request (validation error)
+
+---
+
+## AI Orchestrator Endpoints
+
+Base URL (default):
+```
+http://localhost:5100
+```
+
+### 1. Health
+**GET** `/health`
+
+Checks orchestrator status and model config.
+
+---
+
+### 2. Start Session
+**POST** `/v1/sessions/start`
+
+Starts an interactive complaint interview session.
+
+**Request Body (optional):**
+```json
+{
+  "locale": "en-US"
+}
+```
+
+**Response:**
+```json
+{
+  "ok": true,
+  "session_id": "<uuid>",
+  "locale": "en-US"
+}
+```
+
+---
+
+### 3. STT Transcription
+**POST** `/v1/stt/transcribe`
+
+Multipart form-data with field `audio`.
+
+---
+
+### 4. OpenAI-Compatible Chat
+**POST** `/v1/chat/completions`
+
+Drop-in replacement for chat completions API used by Flutter assistant.
+
+---
+
+### 5. Combined Pipeline Turn
+**POST** `/v1/pipeline/turn`
+
+Single endpoint for one interaction turn:
+- accepts text or audio
+- optional complaint image
+- runs language adaptation, LLM turn, optional ML/image enrichment
+- returns assistant JSON + TTS audio + avatar viseme metadata
+
 - `401` - Unauthorized
 - `404` - Not Found
 - `500` - Internal Server Error

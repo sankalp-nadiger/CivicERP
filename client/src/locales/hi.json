@@ -18,7 +18,43 @@
     "slaStatus": "SLA स्थिति",
     "team": "टीम",
     "officers": "अधिकारी",
-    "executors": "असाइन किए गए कार्यकर्ता"
+    "executors": "असाइन किए गए कार्यकर्ता",
+    "labels": {
+      "department": "विभाग",
+      "complaint": "शिकायत"
+    },
+    "misc": {
+      "notAssigned": "आवंटित नहीं"
+    },
+    "stats": {
+      "totalComplaints": "कुल शिकायतें",
+      "open": "खुला",
+      "inProgress": "प्रगति में",
+      "closed": "बंद"
+    },
+    "sections": {
+      "dailyTrend": "दैनिक रुझान",
+      "statusBreakdown": "स्थिति विभाजन"
+    },
+    "actions": {
+      "selectNewStatus": "नई स्थिति चुनें"
+    },
+    "statusOptions": {
+      "open": "खुला",
+      "inProgress": "प्रगति में",
+      "workDone": "काम पूरा",
+      "verified": "सत्यापित",
+      "closed": "बंद"
+    }
+  },
+  "days": {
+    "monShort": "सोम",
+    "tueShort": "मंगल",
+    "wedShort": "बुध",
+    "thuShort": "गुरु",
+    "friShort": "शुक्र",
+    "satShort": "शनि",
+    "sunShort": "रवि"
   },
   "mcc": {
     "welcome": "नगर आयुक्त डैशबोर्ड",
@@ -164,6 +200,29 @@
     },
     "errors": {
       "createDepartmentFailed": "विभाग बनाने में विफल।",
+      "addOfficerFailed": "अधिकारी जोड़ने में विफल।"
+    }
+  },
+  "level2": {
+    "misc": {
+      "departmentHeadFallback": "विभाग प्रमुख"
+    },
+    "charts": {
+      "received": "प्राप्त",
+      "resolved": "समाधान"
+    },
+    "team": {
+      "underYouTitle": "आपके अंतर्गत {{role}}",
+      "addOfficerTitle": "{{role}} जोड़ें"
+    },
+    "toast": {
+      "fetchComplaintsFailed": "डेटाबेस से शिकायतें लाने में विफल",
+      "officerAddedTitle": "अधिकारी सफलतापूर्वक जोड़ा गया!",
+      "officerAddedEmailSent": "{{name}} को जोड़ा गया। लॉगिन विवरण {{email}} पर भेजे गए",
+      "officerAddedEmailUnavailable": "{{name}} को जोड़ा गया। ईमेल सेवा उपलब्ध नहीं - विवरण लॉग किए गए।",
+      "errorAddingOfficerTitle": "अधिकारी जोड़ने में त्रुटि"
+    },
+    "errors": {
       "addOfficerFailed": "अधिकारी जोड़ने में विफल।"
     }
   },

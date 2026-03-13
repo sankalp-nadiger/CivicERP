@@ -80,6 +80,7 @@ export const getAllComplaints = async (): Promise<Complaint[]> => {
       method: 'POST',
       headers: getAuthHeaders(),
       credentials: 'include',
+      cache: 'no-store',
     });
 
     if (!response.ok) {

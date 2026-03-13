@@ -9,14 +9,42 @@ const extractLatLng = (raw: unknown): { lat: number; lng: number } | null => {
   const text = String(raw || "").trim();
   if (!text) return null;
 
-  const match = text.match(/(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/);
-  if (!match) return null;
+  const isValid = (lat: number, lng: number) =>
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    Math.abs(lat) <= 90 &&
+    Math.abs(lng) <= 180;
 
-  const lat = Number(match[1]);
-  const lng = Number(match[2]);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
-  return { lat, lng };
+  // Common formats we accept:
+  // - "Location: 28.613900, 77.209000"
+  // - "28.6139,77.2090"
+  // - "lat: 28.6139 lng: 77.2090"
+  // - "(28.6139 77.2090)" (space separated)
+  const commaPair = text.match(/(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)/);
+  if (commaPair) {
+    const lat = Number(commaPair[1]);
+    const lng = Number(commaPair[2]);
+    if (isValid(lat, lng)) return { lat, lng };
+  }
+
+  const labeled = text.match(/lat\s*[:=]\s*(-?\d{1,2}(?:\.\d+)?)\D+lng\s*[:=]\s*(-?\d{1,3}(?:\.\d+)?)/i);
+  if (labeled) {
+    const lat = Number(labeled[1]);
+    const lng = Number(labeled[2]);
+    if (isValid(lat, lng)) return { lat, lng };
+  }
+
+  // Fallback: pull out all numbers and try adjacent pairs.
+  // This helps when locations are stored as "28.6139 77.2090" or JSON-ish strings.
+  const numberMatches = text.match(/-?\d+(?:\.\d+)?/g);
+  if (!numberMatches || numberMatches.length < 2) return null;
+  for (let i = 0; i < numberMatches.length - 1; i++) {
+    const lat = Number(numberMatches[i]);
+    const lng = Number(numberMatches[i + 1]);
+    if (isValid(lat, lng)) return { lat, lng };
+  }
+
+  return null;
 };
 
 type WeightedPoint = { lat: number; lng: number; weight: number };
@@ -66,6 +94,7 @@ export const ComplaintsHeatmap: React.FC<{
   const weightedPoints = React.useMemo(() => buildWeightedPoints(complaints), [complaints]);
   const totalComplaints = complaints?.length || 0;
   const plottedCount = weightedPoints.reduce((sum, p) => sum + p.weight, 0);
+  const uniqueLocations = weightedPoints.length;
 
   const maxWeight = React.useMemo(() => Math.max(1, ...weightedPoints.map(p => p.weight)), [weightedPoints]);
 
@@ -83,7 +112,7 @@ export const ComplaintsHeatmap: React.FC<{
       <CardHeader>
         <CardTitle>{title}</CardTitle>
         <CardDescription>
-          Showing {plottedCount} of {totalComplaints} complaints (only complaints with coordinates are mapped)
+          Showing {plottedCount} of {totalComplaints} complaints at {uniqueLocations} locations (only complaints with coordinates are mapped)
         </CardDescription>
       </CardHeader>
       <CardContent>

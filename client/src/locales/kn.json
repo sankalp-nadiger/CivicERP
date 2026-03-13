@@ -18,7 +18,43 @@
     "slaStatus": "SLA ಸ್ಥಿತಿ",
     "team": "ತಂಡ",
     "officers": "ಅಧಿಕಾರಿಗಳು",
-    "executors": "ಅಸೈನ್ ಮಾಡಿದ ಕಾರ್ಯನಿರ್ವಹಕರು"
+    "executors": "ಅಸೈನ್ ಮಾಡಿದ ಕಾರ್ಯನಿರ್ವಹಕರು",
+    "labels": {
+      "department": "ವಿಭಾಗ",
+      "complaint": "ದೂರು"
+    },
+    "misc": {
+      "notAssigned": "ನಿಯೋಜಿಸಲಾಗಿಲ್ಲ"
+    },
+    "stats": {
+      "totalComplaints": "ಒಟ್ಟು ದೂರುಗಳು",
+      "open": "ತೆರೆದ",
+      "inProgress": "ಪ್ರಗತಿಯಲ್ಲಿದೆ",
+      "closed": "ಮುಚ್ಚಿದ"
+    },
+    "sections": {
+      "dailyTrend": "ದೈನಂದಿನ ಪ್ರವೃತ್ತಿ",
+      "statusBreakdown": "ಸ್ಥಿತಿ ವಿಭಾಗ"
+    },
+    "actions": {
+      "selectNewStatus": "ಹೊಸ ಸ್ಥಿತಿಯನ್ನು ಆಯ್ಕೆಮಾಡಿ"
+    },
+    "statusOptions": {
+      "open": "ತೆರೆದ",
+      "inProgress": "ಪ್ರಗತಿಯಲ್ಲಿದೆ",
+      "workDone": "ಕೆಲಸ ಮುಗಿದಿದೆ",
+      "verified": "ದೃಢೀಕರಿಸಲಾಗಿದೆ",
+      "closed": "ಮುಚ್ಚಿದ"
+    }
+  },
+  "days": {
+    "monShort": "ಸೋಮ",
+    "tueShort": "ಮಂಗಳ",
+    "wedShort": "ಬುಧ",
+    "thuShort": "ಗುರು",
+    "friShort": "ಶುಕ್ರ",
+    "satShort": "ಶನಿ",
+    "sunShort": "ಭಾನು"
   },
   "governance": {
     "platform": "ಆಡಳಿತ ವೇದಿಕೆ",
@@ -115,6 +151,29 @@
     },
     "errors": {
       "createDepartmentFailed": "ವಿಭಾಗವನ್ನು ರಚಿಸಲು ವಿಫಲವಾಗಿದೆ.",
+      "addOfficerFailed": "ಅಧಿಕಾರಿಯನ್ನು ಸೇರಿಸಲು ವಿಫಲವಾಗಿದೆ."
+    }
+  },
+  "level2": {
+    "misc": {
+      "departmentHeadFallback": "ವಿಭಾಗ ಮುಖ್ಯಸ್ಥ"
+    },
+    "charts": {
+      "received": "ಸ್ವೀಕರಿಸಲಾಗಿದೆ",
+      "resolved": "ಪರಿಹರಿಸಲಾಗಿದೆ"
+    },
+    "team": {
+      "underYouTitle": "ನಿಮ್ಮ ಅಡಿಯಲ್ಲಿ {{role}}",
+      "addOfficerTitle": "{{role}} ಸೇರಿಸಿ"
+    },
+    "toast": {
+      "fetchComplaintsFailed": "ಡೇಟಾಬೇಸ್‌ನಿಂದ ದೂರುಗಳನ್ನು ಪಡೆಯಲು ವಿಫಲವಾಗಿದೆ",
+      "officerAddedTitle": "ಅಧಿಕಾರಿಯನ್ನು ಯಶಸ್ವಿಯಾಗಿ ಸೇರಿಸಲಾಗಿದೆ!",
+      "officerAddedEmailSent": "{{name}} ಸೇರಿಸಲಾಗಿದೆ. ಲಾಗಿನ್ ವಿವರಗಳನ್ನು {{email}} ಗೆ ಕಳುಹಿಸಲಾಗಿದೆ",
+      "officerAddedEmailUnavailable": "{{name}} ಸೇರಿಸಲಾಗಿದೆ. ಇಮೇಲ್ ಸೇವೆ ಲಭ್ಯವಿಲ್ಲ - ವಿವರಗಳನ್ನು ಲಾಗ್ ಮಾಡಲಾಗಿದೆ.",
+      "errorAddingOfficerTitle": "ಅಧಿಕಾರಿಯನ್ನು ಸೇರಿಸುವಲ್ಲಿ ದೋಷ"
+    },
+    "errors": {
       "addOfficerFailed": "ಅಧಿಕಾರಿಯನ್ನು ಸೇರಿಸಲು ವಿಫಲವಾಗಿದೆ."
     }
   },

@@ -4,7 +4,7 @@
  * Top-level admin who manages entire governance structure
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import { useGovernance } from "@/contexts/GovernanceContext";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -83,6 +83,13 @@ export default function Level1Dashboard() {
   const [activeSection, setActiveSection] = useState('overview');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<{type: 'department' | 'area' | 'user', id: string, name: string} | null>(null);
+
+  const visibleComplaints = React.useMemo(() => {
+    return apiComplaints.filter(c => {
+      const s = String(c.status || '').toLowerCase();
+      return !s.includes('resolved');
+    });
+  }, [apiComplaints]);
   
   // Determine active section from URL path
   const getActiveSectionFromPath = () => {
@@ -115,22 +122,26 @@ export default function Level1Dashboard() {
   }, [location.pathname]);
 
   // Fetch complaints from database
-  const fetchComplaints = async () => {
-    setIsLoadingComplaints(true);
-    try {
-      const fetchedComplaints = await getAllComplaints();
-      setApiComplaints(fetchedComplaints);
-    } catch (error) {
-      console.error('Failed to fetch complaints:', error);
-      toast({
-        title: t("common.error", "Error"),
-        description: t("level1.toast.fetchComplaintsFailed", "Failed to fetch complaints from the database"),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoadingComplaints(false);
-    }
-  };
+  const fetchComplaints = useCallback(
+    async (options?: { silent?: boolean }) => {
+      const silent = options?.silent === true;
+      if (!silent) setIsLoadingComplaints(true);
+      try {
+        const fetchedComplaints = await getAllComplaints();
+        setApiComplaints(fetchedComplaints);
+      } catch (error) {
+        console.error('Failed to fetch complaints:', error);
+        toast({
+          title: t("common.error", "Error"),
+          description: t("level1.toast.fetchComplaintsFailed", "Failed to fetch complaints from the database"),
+          variant: 'destructive',
+        });
+      } finally {
+        if (!silent) setIsLoadingComplaints(false);
+      }
+    },
+    [toast, t]
+  );
 
   React.useEffect(() => {
     if (!currentUser) {
@@ -143,9 +154,25 @@ export default function Level1Dashboard() {
   }, [currentUser, users, setCurrentUser]);
 
   useEffect(() => {
+    // Initial load (shows loading state in complaints tab)
     fetchComplaints();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+
+    // Keep stats fresh when new complaints are raised elsewhere.
+    const refreshSilently = () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      fetchComplaints({ silent: true });
+    };
+
+    window.addEventListener('focus', refreshSilently);
+    document.addEventListener('visibilitychange', refreshSilently);
+    const intervalId = window.setInterval(refreshSilently, 30_000);
+
+    return () => {
+      window.removeEventListener('focus', refreshSilently);
+      document.removeEventListener('visibilitychange', refreshSilently);
+      window.clearInterval(intervalId);
+    };
+  }, [fetchComplaints]);
 
   if (!currentUser || !governanceType) {
     return null;
@@ -170,11 +197,12 @@ export default function Level1Dashboard() {
   const level2Users = getUsersByLevel(users, "LEVEL_2");
   const level3Users = getUsersByLevel(users, "LEVEL_3");
 
-  // Calculate stats from API complaints
+  // Calculate stats from API complaints.
+  // The complaints table hides resolved items, so keep "total" aligned to what's visible.
   const apiStats = {
-    total: apiComplaints.length,
-    open: apiComplaints.filter(c => c.status.toLowerCase().includes('todo') || c.status.toLowerCase().includes('registered')).length,
-    inProgress: apiComplaints.filter(c => c.status.toLowerCase().includes('progress') || c.status.toLowerCase().includes('investigation')).length,
+    total: visibleComplaints.length,
+    open: visibleComplaints.filter(c => c.status.toLowerCase().includes('todo') || c.status.toLowerCase().includes('registered')).length,
+    inProgress: visibleComplaints.filter(c => c.status.toLowerCase().includes('progress') || c.status.toLowerCase().includes('investigation')).length,
     closed: apiComplaints.filter(c => c.status.toLowerCase().includes('completed') || c.status.toLowerCase().includes('resolved')).length,
     breached: 0, // Would need SLA data from backend
   };
@@ -320,15 +348,15 @@ export default function Level1Dashboard() {
 
   // Prepare chart data
   const complaintStatusData = [
-    { name: t("complaintsTable.status.todo", "To Do"), value: apiComplaints.filter(c => c.status.toLowerCase().includes('todo') || c.status.toLowerCase().includes('registered')).length },
-    { name: t("complaintsTable.status.inProgress", "In Progress"), value: apiComplaints.filter(c => c.status.toLowerCase().includes('progress') || c.status.toLowerCase().includes('investigation')).length },
+    { name: t("complaintsTable.status.todo", "To Do"), value: visibleComplaints.filter(c => c.status.toLowerCase().includes('todo') || c.status.toLowerCase().includes('registered')).length },
+    { name: t("complaintsTable.status.inProgress", "In Progress"), value: visibleComplaints.filter(c => c.status.toLowerCase().includes('progress') || c.status.toLowerCase().includes('investigation')).length },
     { name: t("complaintsTable.status.completed", "Completed"), value: apiComplaints.filter(c => c.status.toLowerCase().includes('completed') || c.status.toLowerCase().includes('resolved')).length },
   ].filter(d => d.value > 0);
 
   const priorityData = [
-    { name: t("complaintsTable.priority.high", "High"), value: apiComplaints.filter(c => c.priority_factor >= 0.7).length },
-    { name: t("complaintsTable.priority.medium", "Medium"), value: apiComplaints.filter(c => c.priority_factor >= 0.4 && c.priority_factor < 0.7).length },
-    { name: t("complaintsTable.priority.low", "Low"), value: apiComplaints.filter(c => c.priority_factor < 0.4).length },
+    { name: t("complaintsTable.priority.high", "High"), value: visibleComplaints.filter(c => c.priority_factor >= 0.7).length },
+    { name: t("complaintsTable.priority.medium", "Medium"), value: visibleComplaints.filter(c => c.priority_factor >= 0.4 && c.priority_factor < 0.7).length },
+    { name: t("complaintsTable.priority.low", "Low"), value: visibleComplaints.filter(c => c.priority_factor < 0.4).length },
   ].filter(d => d.value > 0);
 
   const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444"];
@@ -448,7 +476,7 @@ export default function Level1Dashboard() {
                 </div>
 
                 <ComplaintsHeatmap
-                  complaints={apiComplaints}
+                  complaints={visibleComplaints}
                   title={t("dashboard.heatmap.title", "Complaints Heatmap")}
                 />
               </div>
@@ -465,7 +493,7 @@ export default function Level1Dashboard() {
                   </Card>
                 ) : (
                   <ComplaintsTable 
-                    complaints={apiComplaints} 
+                    complaints={visibleComplaints} 
                     onComplaintUpdate={fetchComplaints}
                   />
                 )}
