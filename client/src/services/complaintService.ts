@@ -67,6 +67,10 @@ export interface ScopedComplaintsResponse {
   message?: string;
 }
 
+export interface TranslateTextsResponse {
+  translations: Record<string, string>;
+}
+
 export const generateComplaintId = (): string => {
   const timestamp = Date.now().toString();
   const random = Math.random().toString(36).substr(2, 5).toUpperCase();
@@ -172,6 +176,29 @@ export const updateComplaintStatus = async (
     console.error('Error updating complaint status:', error);
     throw error;
   }
+};
+
+export const translateComplaintTexts = async (params: {
+  targetLang: string;
+  texts: Record<string, string | undefined | null>;
+}): Promise<Record<string, string>> => {
+  const response = await fetch(`${API_BASE_URL}/complaints/translate`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    credentials: 'include',
+    body: JSON.stringify({
+      targetLang: params.targetLang,
+      texts: params.texts,
+    }),
+  });
+
+  if (!response.ok) {
+    const raw = await response.text();
+    throw new Error(raw || 'Failed to translate text');
+  }
+
+  const data: TranslateTextsResponse = await response.json();
+  return data.translations || {};
 };
 
 export const getUserComplaints = (userId: string) => {

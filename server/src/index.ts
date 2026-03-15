@@ -8,6 +8,10 @@ import { initRedis } from "./utils/RedisSetup.js";
 
 config();
 
+if (!process.env.LIBRETRANSLATE_URL) {
+  console.warn('⚠️  LibreTranslate not configured: set LIBRETRANSLATE_URL in server/.env (e.g., http://localhost:5000)');
+}
+
 const app = express();
 
 /* ========================

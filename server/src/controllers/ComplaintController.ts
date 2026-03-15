@@ -4,6 +4,7 @@ import { v4 } from "uuid";
 import bcryptjs from 'bcryptjs';
 import client from "../utils/RedisSetup.js";
 import axios from "axios";
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const normalize = (value: unknown): string =>
     String(value ?? '')
@@ -351,6 +352,120 @@ class ComplaintController {
         } catch (e: any) {
             console.log(e.message)
             res.status(500).json({ "message": "Internal server error" })
+        }
+    }
+
+    async translateTexts(req: any, res: any) {
+        try {
+            const targetLangRaw = String(req.body?.targetLang || '').trim().toLowerCase();
+            const targetLang = targetLangRaw.split('-')[0];
+            const texts = req.body?.texts as Record<string, unknown> | undefined;
+
+            if (!targetLang) {
+                return res.status(400).json({ message: 'targetLang is required' });
+            }
+            if (targetLang === 'en') {
+                return res.status(200).json({ translations: texts || {} });
+            }
+            if (!['hi', 'kn'].includes(targetLang)) {
+                return res.status(400).json({ message: 'Unsupported targetLang' });
+            }
+            if (!texts || typeof texts !== 'object') {
+                return res.status(400).json({ message: 'texts object is required' });
+            }
+
+            const libreUrl = String(process.env.LIBRETRANSLATE_URL || '').trim();
+            if (!libreUrl) {
+                return res.status(500).json({
+                    message: 'Server translation not configured (missing LIBRETRANSLATE_URL)',
+                });
+            }
+
+            // Limit payload size to control cost/latency
+            const entries = Object.entries(texts);
+            const sanitized: Record<string, string> = {};
+            let totalChars = 0;
+            for (const [key, value] of entries) {
+                const s = typeof value === 'string' ? value : value == null ? '' : String(value);
+                const trimmed = s.trim();
+                if (!trimmed) continue;
+                const clipped = trimmed.length > 1500 ? trimmed.slice(0, 1500) : trimmed;
+                sanitized[key] = clipped;
+                totalChars += clipped.length;
+            }
+            if (totalChars === 0) {
+                return res.status(200).json({ translations: {} });
+            }
+            if (totalChars > 3500) {
+                return res.status(413).json({ message: 'Too much text to translate in one request' });
+            }
+
+            const libreApiKey = String(process.env.LIBRETRANSLATE_API_KEY || '').trim();
+            const sourceLang = String(process.env.LIBRETRANSLATE_SOURCE_LANG || 'auto').trim() || 'auto';
+
+            const keys = Object.keys(sanitized);
+            const values = keys.map(k => sanitized[k]);
+
+            // LibreTranslate supports q as either string or array.
+            // We'll send as array and accept either array or string in response for compatibility.
+            const endpoint = libreUrl.replace(/\/$/, '') + '/translate';
+            const payload: any = {
+                q: values,
+                source: sourceLang,
+                target: targetLang,
+                format: 'text',
+            };
+            if (libreApiKey) payload.api_key = libreApiKey;
+
+            const response = await axios.post(endpoint, payload, {
+                headers: { 'Content-Type': 'application/json' },
+                timeout: 20_000,
+            });
+
+            // Possible shapes:
+            // - { translatedText: '...' }
+            // - { translatedText: ['...', '...'] }
+            // - { translatedText: [{translatedText:'...'}] } (some forks)
+            // - { translations: [...] } (some forks)
+            const body = response?.data;
+
+            let translatedArray: any[] | null = null;
+            if (Array.isArray(body?.translatedText)) translatedArray = body.translatedText;
+            else if (Array.isArray(body?.translations)) translatedArray = body.translations;
+            else if (typeof body?.translatedText === 'string') translatedArray = [body.translatedText];
+
+            const out: Record<string, string> = {};
+            for (let i = 0; i < keys.length; i++) {
+                const key = keys[i];
+                const fallback = sanitized[key];
+
+                const item = translatedArray?.[i];
+                const candidate =
+                    typeof item === 'string'
+                        ? item
+                        : typeof item?.translatedText === 'string'
+                            ? item.translatedText
+                            : typeof item?.translation === 'string'
+                                ? item.translation
+                                : '';
+
+                out[key] = candidate && String(candidate).trim() ? String(candidate) : fallback;
+            }
+
+            return res.status(200).json({ translations: out });
+        } catch (e: any) {
+            const status = typeof e?.response?.status === 'number' ? e.response.status : 500;
+            const detail =
+                typeof e?.response?.data === 'string'
+                    ? e.response.data
+                    : e?.response?.data
+                        ? JSON.stringify(e.response.data)
+                        : typeof e?.message === 'string'
+                            ? e.message
+                            : undefined;
+
+            console.error('translateTexts error:', detail || e);
+            return res.status(status).json({ message: 'Translation failed', detail });
         }
     }
 

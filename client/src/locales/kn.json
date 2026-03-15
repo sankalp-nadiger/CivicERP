@@ -287,7 +287,8 @@
       "statusUpdatedDesc": "ದೂರು ಸ್ಥಿತಿ ಯಶಸ್ವಿಯಾಗಿ ನವೀಕರಿಸಲಾಗಿದೆ",
       "updateFailedTitle": "ನವೀಕರಣ ವಿಫಲವಾಗಿದೆ",
       "updateFailedDesc": "ದೂರು ಸ್ಥಿತಿಯನ್ನು ನವೀಕರಿಸಲು ವಿಫಲವಾಗಿದೆ"
-    }
+    },
+    "translating": "ಅನುವಾದಿಸಲಾಗುತ್ತಿದೆ..."
   }
   ,"map": {
     "openInGoogleMaps": "Google Maps ನಲ್ಲಿ ತೆರೆಯಿರಿ"

@@ -610,7 +610,7 @@ export default function Level2Dashboard() {
                 </Card>
               ) : (
                 <ComplaintsTable 
-                  complaints={visibleDepartmentComplaints} 
+                  complaints={departmentComplaints} 
                   onComplaintUpdate={fetchComplaints}
                 />
               )}

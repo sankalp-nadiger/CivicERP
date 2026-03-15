@@ -319,7 +319,8 @@
       "statusUpdatedDesc": "Complaint status has been updated successfully",
       "updateFailedTitle": "Update Failed",
       "updateFailedDesc": "Failed to update complaint status"
-    }
+    },
+    "translating": "Translating..."
   },
   "map": {
     "openInGoogleMaps": "Open in Google Maps"

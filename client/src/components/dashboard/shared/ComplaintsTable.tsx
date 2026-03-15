@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Complaint, updateComplaintStatus } from '@/services/complaintService';
+import React, { useEffect, useState } from 'react';
+import { Complaint, translateComplaintTexts, updateComplaintStatus } from '@/services/complaintService';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTranslation } from 'react-i18next';
 import {
@@ -18,7 +18,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   Select,
@@ -41,11 +40,41 @@ interface ComplaintsTableProps {
 
 export function ComplaintsTable({ complaints, onComplaintUpdate }: ComplaintsTableProps) {
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
   const { toast } = useToast();
   const { t } = useTranslation();
+
+  const safeFormatDate = (value: unknown, pattern: string) => {
+    try {
+      const date = value instanceof Date ? value : new Date(value as any);
+      if (!(date instanceof Date) || Number.isNaN(date.getTime())) return t('complaintsTable.na', 'N/A');
+      return format(date, pattern);
+    } catch {
+      return t('complaintsTable.na', 'N/A');
+    }
+  };
+
+  const getStatusI18nKey = (status: string): string | null => {
+    const normalized = String(status || '').trim().toLowerCase();
+    if (!normalized) return null;
+
+    if (normalized.includes('todo') || normalized.includes('registered')) return 'todo';
+    if (normalized.includes('investigation')) return 'underInvestigation';
+    if (normalized.includes('progress') || normalized.includes('in-progress') || normalized.includes('in progress')) return 'inProgress';
+    if (normalized.includes('completed')) return 'completed';
+    if (normalized.includes('resolved')) return 'resolved';
+
+    return null;
+  };
+
+  const getStatusLabel = (status: string) => {
+    const key = getStatusI18nKey(status);
+    if (!key) return status;
+    return t(`complaintsTable.status.${key}`, status);
+  };
 
   const getStatusBadgeVariant = (status: string) => {
     const normalizedStatus = status.toLowerCase();
@@ -176,7 +205,7 @@ export function ComplaintsTable({ complaints, onComplaintUpdate }: ComplaintsTab
                       </TableCell>
                       <TableCell>
                         <Badge variant={getStatusBadgeVariant(complaint.status)}>
-                          {complaint.status}
+                          {getStatusLabel(complaint.status)}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -185,35 +214,21 @@ export function ComplaintsTable({ complaints, onComplaintUpdate }: ComplaintsTab
                       <TableCell className="text-sm text-gray-600">
                         <div className="flex items-center gap-1">
                           <Calendar className="w-3 h-3" />
-                          {format(new Date(complaint.date), 'MMM dd, yyyy')}
+                          {safeFormatDate(complaint.date, 'MMM dd, yyyy')}
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setSelectedComplaint(complaint)}
-                            >
-                              <Eye className="w-4 h-4 mr-1" />
-                              {t('complaintsTable.view', 'View')}
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-                            <DialogHeader>
-                              <DialogTitle>{t('complaintsTable.detailsTitle', 'Complaint Details')}</DialogTitle>
-                              <DialogDescription>
-                                {t('complaintsTable.detailsIdPrefix', 'ID')}: {complaint.complaint_id}
-                              </DialogDescription>
-                            </DialogHeader>
-                            <ComplaintDetailsView
-                              complaint={complaint}
-                              onUpdateStatus={handleUpdateStatus}
-                              isUpdating={isUpdating}
-                            />
-                          </DialogContent>
-                        </Dialog>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedComplaint(complaint);
+                            setIsDetailsOpen(true);
+                          }}
+                        >
+                          <Eye className="w-4 h-4 mr-1" />
+                          {t('complaintsTable.view', 'View')}
+                        </Button>
                       </TableCell>
                     </TableRow>
                   );
@@ -229,6 +244,35 @@ export function ComplaintsTable({ complaints, onComplaintUpdate }: ComplaintsTab
             total: complaints.length,
           })}
         </div>
+
+        <Dialog
+          open={isDetailsOpen}
+          onOpenChange={(open) => {
+            setIsDetailsOpen(open);
+            if (!open) setSelectedComplaint(null);
+          }}
+        >
+          <DialogContent
+            className="max-w-3xl max-h-[90vh] overflow-y-auto"
+            key={selectedComplaint?._id || selectedComplaint?.complaint_id || 'empty'}
+          >
+            {selectedComplaint && (
+              <>
+                <DialogHeader>
+                  <DialogTitle>{t('complaintsTable.detailsTitle', 'Complaint Details')}</DialogTitle>
+                  <DialogDescription>
+                    {t('complaintsTable.detailsIdPrefix', 'ID')}: {selectedComplaint.complaint_id}
+                  </DialogDescription>
+                </DialogHeader>
+                <ComplaintDetailsView
+                  complaint={selectedComplaint}
+                  onUpdateStatus={handleUpdateStatus}
+                  isUpdating={isUpdating}
+                />
+              </>
+            )}
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );
@@ -243,7 +287,102 @@ interface ComplaintDetailsViewProps {
 function ComplaintDetailsView({ complaint, onUpdateStatus, isUpdating }: ComplaintDetailsViewProps) {
   const [newStatus, setNewStatus] = useState(complaint.status);
   const [comments, setComments] = useState('');
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+
+  const [translated, setTranslated] = useState<{
+    title?: string;
+    location?: string;
+    complaint?: string;
+    summarized_complaint?: string;
+  } | null>(null);
+
+  const [isTranslating, setIsTranslating] = useState(false);
+
+  useEffect(() => {
+    setNewStatus(complaint.status);
+    setComments('');
+  }, [complaint._id, complaint.complaint_id, complaint.status]);
+
+  const issueCategories = Array.isArray(complaint.issue_category) ? complaint.issue_category : [];
+  const commentHistory = Array.isArray(complaint.comments) ? complaint.comments : [];
+
+  const safeFormatDate = (value: unknown, pattern: string) => {
+    try {
+      const date = value instanceof Date ? value : new Date(value as any);
+      if (!(date instanceof Date) || Number.isNaN(date.getTime())) return t('complaintsTable.na', 'N/A');
+      return format(date, pattern);
+    } catch {
+      return t('complaintsTable.na', 'N/A');
+    }
+  };
+
+  const getStatusI18nKey = (status: string): string | null => {
+    const normalized = String(status || '').trim().toLowerCase();
+    if (!normalized) return null;
+
+    if (normalized.includes('todo') || normalized.includes('registered')) return 'todo';
+    if (normalized.includes('investigation')) return 'underInvestigation';
+    if (normalized.includes('progress') || normalized.includes('in-progress') || normalized.includes('in progress')) return 'inProgress';
+    if (normalized.includes('completed')) return 'completed';
+    if (normalized.includes('resolved')) return 'resolved';
+
+    return null;
+  };
+
+  const getStatusLabel = (status: string) => {
+    const key = getStatusI18nKey(status);
+    if (!key) return status;
+    return t(`complaintsTable.status.${key}`, status);
+  };
+
+  useEffect(() => {
+    const lang = String(i18n.language || 'en').toLowerCase().split('-')[0];
+    if (lang === 'en') {
+      setTranslated(null);
+      return;
+    }
+    // Only translate for languages we support on the server right now
+    if (!['hi', 'kn'].includes(lang)) {
+      setTranslated(null);
+      return;
+    }
+
+    let isCancelled = false;
+    setIsTranslating(true);
+    translateComplaintTexts({
+      targetLang: lang,
+      texts: {
+        title: complaint.title || '',
+        location: complaint.location || '',
+        complaint: complaint.complaint || '',
+        summarized_complaint: complaint.summarized_complaint || '',
+      },
+    })
+      .then((translations) => {
+        if (isCancelled) return;
+        setTranslated({
+          title: translations.title,
+          location: translations.location,
+          complaint: translations.complaint,
+          summarized_complaint: translations.summarized_complaint,
+        });
+      })
+      .catch((err) => {
+        if (isCancelled) return;
+        // Keep UI functional (fall back to original text), but log the root cause.
+        // Common causes: 401 (auth), 429 (Gemini quota), 500 (missing key / server error)
+        console.error('Complaint translation failed', err);
+        setTranslated(null);
+      })
+      .finally(() => {
+        if (isCancelled) return;
+        setIsTranslating(false);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [complaint, i18n.language]);
 
   return (
     <div className="space-y-6">
@@ -251,7 +390,7 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, isUpdating }: Complai
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="text-sm font-medium text-gray-700">{t('complaintsTable.fields.title', 'Title')}</label>
-          <p className="text-sm mt-1">{complaint.title || t('complaintsTable.na', 'N/A')}</p>
+          <p className="text-sm mt-1">{translated?.title || complaint.title || t('complaintsTable.na', 'N/A')}</p>
         </div>
         <div>
           <label className="text-sm font-medium text-gray-700">{t('complaintsTable.fields.raisedBy', 'Raised By')}</label>
@@ -266,7 +405,7 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, isUpdating }: Complai
         <div>
           <label className="text-sm font-medium text-gray-700">{t('complaintsTable.fields.lastUpdated', 'Last Updated')}</label>
           <p className="text-sm mt-1">
-            {format(new Date(complaint.lastupdate), 'MMM dd, yyyy HH:mm')}
+            {safeFormatDate(complaint.lastupdate, 'MMM dd, yyyy HH:mm')}
           </p>
         </div>
       </div>
@@ -282,9 +421,9 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, isUpdating }: Complai
             {t('complaintsTable.fields.location', 'Location')}
           </label>
           <p className="text-sm mt-2 p-3 bg-green-50 rounded border border-green-200">
-            {complaint.location}
+            {translated?.location || complaint.location}
           </p>
-          <GoogleMapsEmbed location={complaint.location} />
+          <GoogleMapsEmbed location={translated?.location || complaint.location} />
         </div>
       )}
 
@@ -292,7 +431,7 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, isUpdating }: Complai
       <div>
         <label className="text-sm font-medium text-gray-700">{t('complaintsTable.fields.categories', 'Categories')}</label>
         <div className="flex flex-wrap gap-2 mt-2">
-          {complaint.issue_category.map((cat, idx) => (
+          {issueCategories.map((cat, idx) => (
             <Badge key={idx} variant="secondary">
               {cat}
             </Badge>
@@ -303,7 +442,9 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, isUpdating }: Complai
       {/* Full Complaint */}
       <div>
         <label className="text-sm font-medium text-gray-700">{t('complaintsTable.fields.fullComplaint', 'Full Complaint')}</label>
-        <p className="text-sm mt-2 p-3 bg-gray-50 rounded border">{complaint.complaint}</p>
+        <p className="text-sm mt-2 p-3 bg-gray-50 rounded border">
+          {translated?.complaint || complaint.complaint}
+        </p>
       </div>
 
       {/* Summarized Complaint */}
@@ -311,9 +452,15 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, isUpdating }: Complai
         <div>
           <label className="text-sm font-medium text-gray-700">{t('complaintsTable.fields.aiSummary', 'AI Summary')}</label>
           <p className="text-sm mt-2 p-3 bg-blue-50 rounded border border-blue-200">
-            {complaint.summarized_complaint}
+            {translated?.summarized_complaint || complaint.summarized_complaint}
           </p>
         </div>
+      )}
+
+      {isTranslating && (
+        <p className="text-xs text-gray-500">
+          {t('complaintsTable.translating', 'Translating...')}
+        </p>
       )}
 
       {/* Proof */}
@@ -332,18 +479,21 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, isUpdating }: Complai
       )}
 
       {/* Comments History */}
-      {complaint.comments.length > 0 && (
+      {commentHistory.length > 0 && (
         <div>
           <label className="text-sm font-medium text-gray-700">{t('complaintsTable.fields.commentHistory', 'Comment History')}</label>
           <div className="mt-2 space-y-2">
-            {complaint.comments.map((comment, idx) => {
+            {commentHistory.map((comment, idx) => {
               const parts = comment.split('|');
+              const statusPart = parts[0] || '';
               return (
                 <div key={idx} className="p-3 bg-gray-50 rounded border text-sm">
                   <div className="flex items-center gap-2 mb-1">
-                    <Badge variant="outline">{parts[0] || t('complaintsTable.statusLabel', 'Status')}</Badge>
+                    <Badge variant="outline">
+                      {statusPart ? getStatusLabel(statusPart) : t('complaintsTable.statusLabel', 'Status')}
+                    </Badge>
                     <span className="text-xs text-gray-500">
-                      {t('complaintsTable.by', 'by')} {parts[1] || t('complaintsTable.unknown', 'Unknown')} • {parts[2] ? format(new Date(parts[2]), 'MMM dd, yyyy HH:mm') : ''}
+                      {t('complaintsTable.by', 'by')} {parts[1] || t('complaintsTable.unknown', 'Unknown')} • {parts[2] ? safeFormatDate(parts[2], 'MMM dd, yyyy HH:mm') : ''}
                     </span>
                   </div>
                   <p>{parts[3] || comment}</p>

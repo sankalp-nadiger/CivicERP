@@ -493,7 +493,7 @@ export default function Level1Dashboard() {
                   </Card>
                 ) : (
                   <ComplaintsTable 
-                    complaints={visibleComplaints} 
+                    complaints={apiComplaints} 
                     onComplaintUpdate={fetchComplaints}
                   />
                 )}

@@ -11,5 +11,8 @@ complaintRouter.post('/myComplaint',ComplaintController.getMyComplaints);
 // Officer-scoped complaints (Zone/Ward officers)
 complaintRouter.get('/scoped', verifyToken, ComplaintController.getScopedComplaints);
 
+// Translate dynamic/free-text complaint fields
+complaintRouter.post('/translate', verifyToken, ComplaintController.translateTexts);
+
 
 export default complaintRouter;

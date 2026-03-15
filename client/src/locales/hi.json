@@ -336,7 +336,8 @@
       "statusUpdatedDesc": "शिकायत की स्थिति सफलतापूर्वक अपडेट हो गई",
       "updateFailedTitle": "अपडेट विफल",
       "updateFailedDesc": "शिकायत की स्थिति अपडेट नहीं हो सकी"
-    }
+    },
+    "translating": "अनुवाद हो रहा है..."
   }
   ,"map": {
     "openInGoogleMaps": "Google Maps में खोलें"
