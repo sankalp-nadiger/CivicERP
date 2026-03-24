@@ -95,26 +95,26 @@ export default function Level1Dashboard() {
   const getActiveSectionFromPath = () => {
     const path = location.pathname;
     if (path.includes('/departments')) return 'departments';
-    if (path.includes('/areas')) return 'areas';
     if (path.includes('/users')) return 'users';
     if (path.includes('/complaints')) return 'complaints';
     return 'overview';
   };
 
   const sidebar = React.useMemo(() => {
-    const hierarchy = getAreaHierarchy(governanceType);
     return [
       { label: t("dashboard.overview", "Overview"), path: "/dashboard/level1", icon: <FileText className="w-4 h-4" /> },
       { label: t("dashboard.complaints", "Complaints"), path: "/dashboard/level1/complaints", icon: <FileText className="w-4 h-4" /> },
       { label: t("dashboard.departments", "Departments"), path: "/dashboard/level1/departments", icon: <Building2 className="w-4 h-4" /> },
-      {
-        label: hierarchy.parent === "ZONE" ? t("dashboard.zones", "Zones") : t("dashboard.taluks", "Taluks"),
-        path: "/dashboard/level1/areas",
-        icon: <MapPin className="w-4 h-4" />,
-      },
       { label: t("dashboard.users", "Users"), path: "/dashboard/level1/users", icon: <Users className="w-4 h-4" /> }
     ];
   }, [governanceType, t]);
+
+  // Guard legacy URLs (previously /areas was used for Zones/Taluks)
+  React.useEffect(() => {
+    if (location.pathname.includes('/dashboard/level1/areas')) {
+      navigate('/dashboard/level1', { replace: true });
+    }
+  }, [location.pathname, navigate]);
 
   // Update active section when location changes
   useEffect(() => {
@@ -549,37 +549,6 @@ export default function Level1Dashboard() {
   </div>
 )}
 
-
-            {/* Areas Section */}
-            {activeSection === 'areas' && (
-              <div className="space-y-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>{t("level1.areas.title", "Areas")}</CardTitle>
-                    <CardDescription>{t("level1.areas.count", "{{count}} areas", { count: areas.length })}</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="space-y-2 max-h-64 overflow-y-auto">
-                      {areas.length === 0 ? (
-                        <p className="text-sm text-gray-500">{t("level1.areas.empty", "No areas created yet")}</p>
-                      ) : (
-                        areas.map(area => (
-                          <div key={area.id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded border">
-                            <div className="flex-1">
-                              <p className="font-medium text-sm">{area.name}</p>
-                              <p className="text-xs text-gray-500">{area.type}</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline">{area.type}</Badge>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
 
             {/* Users Section */}
             {activeSection === 'users' && (

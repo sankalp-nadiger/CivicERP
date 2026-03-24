@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Complaint, translateComplaintTexts, updateComplaintStatus } from '@/services/complaintService';
+import { Complaint, assignComplaintToContractor, translateComplaintTexts, updateComplaintStatus } from '@/services/complaintService';
+import { listContractors, type Contractor } from '@/services/contractorService';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTranslation } from 'react-i18next';
 import {
@@ -36,9 +37,14 @@ import { GoogleMapsEmbed } from '@/components/GoogleMapsEmbed';
 interface ComplaintsTableProps {
   complaints: Complaint[];
   onComplaintUpdate?: () => void;
+  enableContractorAssignment?: boolean;
+  assignmentDepartment?: {
+    departmentId?: string;
+    departmentName?: string;
+  };
 }
 
-export function ComplaintsTable({ complaints, onComplaintUpdate }: ComplaintsTableProps) {
+export function ComplaintsTable({ complaints, onComplaintUpdate, enableContractorAssignment, assignmentDepartment }: ComplaintsTableProps) {
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -267,7 +273,13 @@ export function ComplaintsTable({ complaints, onComplaintUpdate }: ComplaintsTab
                 <ComplaintDetailsView
                   complaint={selectedComplaint}
                   onUpdateStatus={handleUpdateStatus}
+                  onAssignContractor={async (complaint, contractorId) => {
+                    await assignComplaintToContractor({ complaint_id: complaint.complaint_id, contractorId });
+                    onComplaintUpdate?.();
+                  }}
                   isUpdating={isUpdating}
+                  enableContractorAssignment={enableContractorAssignment === true}
+                  assignmentDepartment={assignmentDepartment}
                 />
               </>
             )}
@@ -281,13 +293,25 @@ export function ComplaintsTable({ complaints, onComplaintUpdate }: ComplaintsTab
 interface ComplaintDetailsViewProps {
   complaint: Complaint;
   onUpdateStatus: (complaint: Complaint, status: string, comments?: string) => void;
+  onAssignContractor: (complaint: Complaint, contractorId: string) => Promise<void>;
   isUpdating: boolean;
+  enableContractorAssignment: boolean;
+  assignmentDepartment?: {
+    departmentId?: string;
+    departmentName?: string;
+  };
 }
 
-function ComplaintDetailsView({ complaint, onUpdateStatus, isUpdating }: ComplaintDetailsViewProps) {
+function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, isUpdating, enableContractorAssignment, assignmentDepartment }: ComplaintDetailsViewProps) {
   const [newStatus, setNewStatus] = useState(complaint.status);
   const [comments, setComments] = useState('');
   const { t, i18n } = useTranslation();
+
+  const [contractors, setContractors] = useState<Contractor[]>([]);
+  const [selectedContractorId, setSelectedContractorId] = useState<string>('');
+  const [isLoadingContractors, setIsLoadingContractors] = useState(false);
+  const [isAssigning, setIsAssigning] = useState(false);
+  const { toast } = useToast();
 
   const [translated, setTranslated] = useState<{
     title?: string;
@@ -301,7 +325,37 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, isUpdating }: Complai
   useEffect(() => {
     setNewStatus(complaint.status);
     setComments('');
+    setSelectedContractorId('');
   }, [complaint._id, complaint.complaint_id, complaint.status]);
+
+  useEffect(() => {
+    if (!enableContractorAssignment) return;
+
+    let cancelled = false;
+    setIsLoadingContractors(true);
+    listContractors({
+      status: 'ALL',
+      departmentId: assignmentDepartment?.departmentId,
+      departmentName: assignmentDepartment?.departmentName,
+    })
+      .then((list) => {
+        if (cancelled) return;
+        setContractors(Array.isArray(list) ? list : []);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('Failed to load contractors', err);
+        setContractors([]);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setIsLoadingContractors(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [enableContractorAssignment, assignmentDepartment?.departmentId, assignmentDepartment?.departmentName]);
 
   const issueCategories = Array.isArray(complaint.issue_category) ? complaint.issue_category : [];
   const commentHistory = Array.isArray(complaint.comments) ? complaint.comments : [];
@@ -542,6 +596,70 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, isUpdating }: Complai
           </Button>
         </div>
       </div>
+
+      {/* Assign Contractor (Level 2) */}
+      {enableContractorAssignment && (
+        <div className="border-t pt-6">
+          <h3 className="font-semibold mb-4">{t('complaintsTable.assignContractor.title', 'Assign Contractor')}</h3>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700">{t('complaintsTable.assignContractor.current', 'Currently Assigned')}</label>
+                <p className="text-sm mt-1">
+                  {complaint.assignedContractorName ? complaint.assignedContractorName : t('complaintsTable.assignContractor.none', 'Not assigned')}
+                </p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700">{t('complaintsTable.assignContractor.available', 'Available Contractors')}</label>
+                <Select value={selectedContractorId} onValueChange={setSelectedContractorId} disabled={isLoadingContractors}>
+                  <SelectTrigger className="w-full mt-1">
+                    <SelectValue placeholder={isLoadingContractors ? t('common.loading', 'Loading...') : t('complaintsTable.assignContractor.select', 'Select a contractor')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {contractors.length === 0 ? (
+                      <SelectItem value="__none" disabled>
+                        {t('complaintsTable.assignContractor.noContractors', 'No available contractors')}
+                      </SelectItem>
+                    ) : (
+                      contractors.map(c => (
+                        <SelectItem key={c._id} value={c._id}>
+                          {c.name} • {c.availabilityStatus}{c.ward ? ` • ${c.ward}` : ''}{c.zone ? ` • ${c.zone}` : ''}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <Button
+              onClick={async () => {
+                if (!selectedContractorId || selectedContractorId === '__none') return;
+                setIsAssigning(true);
+                try {
+                  await onAssignContractor(complaint, selectedContractorId);
+                  toast({
+                    title: t('complaintsTable.assignContractor.toast.successTitle', 'Assigned'),
+                    description: t('complaintsTable.assignContractor.toast.successDesc', 'Complaint assigned to contractor successfully'),
+                  });
+                } catch (err) {
+                  toast({
+                    title: t('complaintsTable.assignContractor.toast.failTitle', 'Assignment failed'),
+                    description: (err as any)?.message || t('complaintsTable.assignContractor.toast.failDesc', 'Failed to assign complaint'),
+                    variant: 'destructive',
+                  });
+                } finally {
+                  setIsAssigning(false);
+                }
+              }}
+              disabled={isAssigning || isUpdating || !selectedContractorId || selectedContractorId === '__none'}
+              className="w-full"
+            >
+              {isAssigning ? t('complaintsTable.assignContractor.assigning', 'Assigning...') : t('complaintsTable.assignContractor.assign', 'Assign')}
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

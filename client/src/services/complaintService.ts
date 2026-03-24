@@ -49,6 +49,11 @@ export interface Complaint {
   priority_factor: number;
   comments: string[];
   location?: string;
+
+  assignedContractorId?: string;
+  assignedContractorName?: string;
+  assignedAt?: string;
+  assignedBy?: string;
 }
 
 export interface ComplaintStats {
@@ -176,6 +181,37 @@ export const updateComplaintStatus = async (
     console.error('Error updating complaint status:', error);
     throw error;
   }
+};
+
+// Assign complaint to contractor (Level 2)
+export const assignComplaintToContractor = async (params: {
+  complaint_id: string;
+  contractorId: string;
+}): Promise<Complaint> => {
+  const response = await fetch(`${API_BASE_URL}/complaints/assign`, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    credentials: 'include',
+    body: JSON.stringify({
+      complaint_id: params.complaint_id,
+      contractorId: params.contractorId,
+    }),
+  });
+
+  if (!response.ok) {
+    const raw = await response.text();
+    let message = 'Failed to assign complaint';
+    try {
+      const parsed = raw ? JSON.parse(raw) : null;
+      message = parsed?.message || message;
+    } catch {
+      message = raw || message;
+    }
+    throw new Error(message);
+  }
+
+  const data = await response.json();
+  return data.complaint as Complaint;
 };
 
 export const translateComplaintTexts = async (params: {

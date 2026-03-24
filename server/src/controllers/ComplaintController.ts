@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { Complaint, User, Department, Area, Officer } from "../models/index.js";
+import { Complaint, User, Department, Area, Officer, Contractor } from "../models/index.js";
 import { v4 } from "uuid";
 import bcryptjs from 'bcryptjs';
 import client from "../utils/RedisSetup.js";
@@ -564,7 +564,7 @@ class ComplaintController {
 
                 if (!officer) {
                     const hint = userEmail
-                        ? `No Officer profile linked to ${userEmail}. Create this account via Level 2 → "Add Zone Officer" (or Level 3 → "Add Ward Officer") so scope is assigned.`
+                        ? `No Officer profile linked to ${userEmail}. Create this account via the governance dashboards so scope is assigned.`
                         : 'No Officer profile linked to this user. Create the officer via the governance dashboards so scope is assigned.';
                     res.status(404).json({ message: hint });
                     return;
@@ -620,6 +620,91 @@ class ComplaintController {
         } catch (e: any) {
             console.error(e);
             res.status(500).json({ message: 'Internal server error' });
+        }
+    }
+
+    // Assign a complaint to a contractor (Department Head / Level 2 workflow)
+    // PUT /complaints/assign
+    // Body: { complaint_id: string, contractorId: string }
+    async assignComplaintToContractor(req: any, res: Response) {
+        try {
+            const requesterId = req.user?.id;
+            if (!requesterId) {
+                res.status(401).json({ message: 'Not authenticated' });
+                return;
+            }
+
+            const requester = await User.findById(requesterId)
+                .select('_id email username governanceLevel governanceType departmentId')
+                .lean();
+
+            const level = String((requester as any)?.governanceLevel || '').toUpperCase();
+            if (level !== 'LEVEL_1' && level !== 'LEVEL_2') {
+                res.status(403).json({ message: 'Only Level 1/2 users can assign complaints to contractors.' });
+                return;
+            }
+
+            const { complaint_id, contractorId } = req.body || {};
+            const complaintId = String(complaint_id || '').trim();
+            const contractorObjectId = String(contractorId || '').trim();
+
+            if (!complaintId) {
+                res.status(400).json({ message: 'complaint_id is required' });
+                return;
+            }
+            if (!/^[a-f\d]{24}$/i.test(contractorObjectId)) {
+                res.status(400).json({ message: 'contractorId is required and must be a valid id' });
+                return;
+            }
+
+            const complaint = await Complaint.findOne({ complaint_id: complaintId });
+            if (!complaint) {
+                res.status(404).json({ message: 'Complaint not found' });
+                return;
+            }
+
+            const contractor = await Contractor.findById(contractorObjectId).lean();
+            if (!contractor) {
+                res.status(404).json({ message: 'Contractor not found' });
+                return;
+            }
+
+            // Update complaint assignment fields
+            (complaint as any).assignedContractorId = (contractor as any)._id;
+            (complaint as any).assignedContractorName = String((contractor as any).name || '').trim();
+            (complaint as any).assignedAt = new Date();
+            (complaint as any).assignedBy = (requester as any)?._id;
+
+            const actor = (requester as any)?.email || (requester as any)?.username || 'Level2';
+            const assignmentComment = [
+                'assigned',
+                actor,
+                new Date().toISOString(),
+                `Assigned to ${(contractor as any).name}`
+            ].join('|');
+            (complaint as any).comments = Array.isArray((complaint as any).comments) ? (complaint as any).comments : [];
+            (complaint as any).comments.push(assignmentComment);
+            (complaint as any).lastupdate = new Date();
+
+            await complaint.save();
+
+            // Also mark contractor as BUSY and attach a readable task label
+            const taskLabel = `Complaint ${complaintId}${(complaint as any).title ? `: ${(complaint as any).title}` : ''}`.trim();
+            await Contractor.updateOne(
+                { _id: (contractor as any)._id },
+                {
+                    $set: {
+                        availabilityStatus: 'BUSY',
+                        currentAssignedTask: taskLabel,
+                        lastLocationUpdateAt: new Date(),
+                    },
+                }
+            );
+
+            res.status(200).json({ message: 'Assigned successfully', complaint });
+        } catch (e: any) {
+            console.error('assignComplaintToContractor error:', e);
+            res.status(500).json({ message: e?.message || 'Failed to assign complaint' });
         }
     }
 }

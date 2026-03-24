@@ -57,7 +57,7 @@ const buildWeightedPoints = (complaints: ApiComplaint[]): WeightedPoint[] => {
   const keyFor = (lat: number, lng: number) => `${lat.toFixed(4)},${lng.toFixed(4)}`;
 
   for (const complaint of complaints || []) {
-    const coords = extractLatLng((complaint as any).location);
+    const coords = extractLatLng(complaint.location);
     if (!coords) continue;
 
     const key = keyFor(coords.lat, coords.lng);
@@ -145,9 +145,9 @@ export const ComplaintsHeatmap: React.FC<{
                     center={[p.lat, p.lng] as [number, number]}
                     radius={radiusPx}
                     pathOptions={{
-                      color: "#3b82f6",
+                      color: "#ef4444",
                       weight: 0,
-                      fillColor: "#3b82f6",
+                      fillColor: "#ef4444",
                       fillOpacity: 0.15 + intensity * 0.35,
                     }}
                   >

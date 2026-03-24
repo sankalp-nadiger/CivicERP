@@ -13,6 +13,46 @@ Authorization: Bearer <your_jwt_token>
 
 ---
 
+## Uploads (S3)
+
+### 1. Presign complaint photo upload
+**POST** `/uploads/presign`
+
+Generates a presigned S3 **PUT** URL for uploading a complaint photo. The client uploads the file directly to S3, then saves the returned `publicUrl` into `complaint_proof` when creating the complaint.
+
+**Required environment variables (server):**
+- `AWS_REGION`
+- `AWS_S3_BUCKET`
+
+**Optional:**
+- `AWS_S3_PUBLIC_BASE_URL` (recommended for CloudFront or custom public base URL)
+
+**Request Body:**
+```json
+{
+  "filename": "pothole.jpg",
+  "contentType": "image/jpeg",
+  "uuid": "<optional-user-uuid>",
+  "folder": "complaints"
+}
+```
+
+**Response:**
+```json
+{
+  "key": "complaints/<uuid>/2026-03-16T...-pothole.jpg",
+  "uploadUrl": "https://...presigned...",
+  "publicUrl": "https://.../complaints/<uuid>/...-pothole.jpg",
+  "expiresInSeconds": 60
+}
+```
+
+**Client upload step:**
+Send a `PUT` request to `uploadUrl` with the raw file bytes and the same `Content-Type`.
+
+
+---
+
 ## Governance Endpoints
 
 ### 1. Create Department

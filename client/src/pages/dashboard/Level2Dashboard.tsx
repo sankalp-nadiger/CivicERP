@@ -1,7 +1,7 @@
 /**
  * LEVEL_2 DASHBOARD
  * Department Head / District Program Officer
- * Manages their department and subordinate Zone Officers
+ * Manages their department
  */
 
 import React, { useState, useEffect } from "react";
@@ -10,32 +10,23 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTranslation } from "react-i18next";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
-import {
-  StatCard,
-  ComplaintCard,
-  AddOfficerDialog,
-  UserListCard
-} from "@/components/dashboard/DashboardComponents";
+import { StatCard } from "@/components/dashboard/DashboardComponents";
 import { getAllComplaints, Complaint as ApiComplaint } from "@/services/complaintService";
 import { ComplaintsTable } from "@/components/dashboard/shared/ComplaintsTable";
 import { ComplaintsHeatmap } from "@/components/dashboard/shared/ComplaintsHeatmap";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import * as governanceService from "@/services/governanceService";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { getLevelDisplayName, getAreaHierarchy } from "@/config/governanceTemplates";
+import { getLevelDisplayName } from "@/config/governanceTemplates";
+import { ContractorMonitoring } from "@/components/dashboard/department-head/ContractorMonitoring";
 import {
   getComplaintStats,
   getComplaintsByDepartment,
-  getComplaintsByStatus,
-  getUsersByLevel,
-  getSubordinates,
   generateUserId
 } from "@/lib/governanceUtils";
 import {
@@ -50,7 +41,7 @@ import {
   BarChart,
   Bar
 } from "recharts";
-import { Users, FileText, AlertCircle, TrendingUp, Plus } from "lucide-react";
+import { FileText, AlertCircle, TrendingUp, MapPin } from "lucide-react";
 
 export default function Level2Dashboard() {
   const navigate = useNavigate();
@@ -62,7 +53,6 @@ export default function Level2Dashboard() {
     governanceType,
     currentUser,
     departments,
-    areas,
     users,
     complaints,
     setCurrentUser,
@@ -78,7 +68,7 @@ export default function Level2Dashboard() {
   const [apiComplaints, setApiComplaints] = useState<ApiComplaint[]>([]);
   const [isLoadingComplaints, setIsLoadingComplaints] = useState(true);
   const [myDepartmentFromApi, setMyDepartmentFromApi] = useState<governanceService.BackendDepartment | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'complaints' | 'zones'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'complaints' | 'contractors'>('overview');
 
   const authEmail = (authUser?.email || '').trim().toLowerCase();
   const authGovLevel = (authUser?.governanceLevel || '').toString().trim().toUpperCase();
@@ -108,30 +98,30 @@ export default function Level2Dashboard() {
   }, []);
 
   const sidebar = React.useMemo(() => {
-    const hierarchy = getAreaHierarchy(governanceType);
-    const parentLabel = hierarchy.parent === "ZONE" ? t("dashboard.zones", "Zones") : t("dashboard.taluks", "Taluks");
     return [
       { label: t("dashboard.overview", "Overview"), path: "/dashboard/level2", icon: <FileText className="w-4 h-4" /> },
       { label: t("dashboard.complaints", "Complaints"), path: "/dashboard/level2/complaints", icon: <AlertCircle className="w-4 h-4" /> },
-      { label: parentLabel, path: "/dashboard/level2/zones", icon: <Users className="w-4 h-4" /> }
+      { label: t('level2.contractors.title', 'Contractor Monitoring'), path: "/dashboard/level2/contractors", icon: <MapPin className="w-4 h-4" /> }
     ];
   }, [governanceType, t]);
 
-  const parentLabel = React.useMemo(() => {
-    const hierarchy = getAreaHierarchy(governanceType);
-    return hierarchy.parent === "ZONE" ? t("dashboard.zones", "Zones") : t("dashboard.taluks", "Taluks");
-  }, [governanceType, t]);
-
-  const getActiveTabFromPath = React.useCallback((): 'overview' | 'complaints' | 'zones' => {
+  const getActiveTabFromPath = React.useCallback((): 'overview' | 'complaints' | 'contractors' => {
     const path = location.pathname;
     if (path.includes('/complaints')) return 'complaints';
-    if (path.includes('/zones')) return 'zones';
+    if (path.includes('/contractors')) return 'contractors';
     return 'overview';
   }, [location.pathname]);
 
   React.useEffect(() => {
     setActiveTab(getActiveTabFromPath());
   }, [getActiveTabFromPath]);
+
+  // Guard legacy URLs (previously /zones was used for Zone/Taluk management)
+  React.useEffect(() => {
+    if (location.pathname.includes('/dashboard/level2/zones')) {
+      navigate('/dashboard/level2', { replace: true });
+    }
+  }, [location.pathname, navigate]);
 
   // Set governance currentUser from authenticated user (prevents using seeded dummy Dept Head users)
   React.useEffect(() => {
@@ -224,22 +214,14 @@ export default function Level2Dashboard() {
     };
   }, [authUser?.email]);
 
-  if (!currentUser || !governanceType) {
-    return null;
-  }
-
-  const governanceKey = governanceType.toLowerCase() as 'city' | 'panchayat';
+  const governanceKey = (governanceType || 'CITY').toLowerCase() as 'city' | 'panchayat';
   const level2RoleLabel = t(
     `roles.${governanceKey}.LEVEL_2`,
-    getLevelDisplayName(governanceType, 'LEVEL_2')
-  );
-  const level3RoleLabel = t(
-    `roles.${governanceKey}.LEVEL_3`,
-    getLevelDisplayName(governanceType, 'LEVEL_3')
+    getLevelDisplayName(governanceType || 'CITY', 'LEVEL_2')
   );
 
   // Department of current user
-  const myDepartment = departments.find(d => d.id === currentUser.department);
+  const myDepartment = departments.find(d => d.id === currentUser?.department);
 
   const resolvedDepartmentName = myDepartmentFromApi?.name || myDepartment?.name;
   const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -320,12 +302,9 @@ export default function Level2Dashboard() {
     inProgress: visibleDepartmentComplaints.filter(c => c.status.toLowerCase().includes('progress') || c.status.toLowerCase().includes('investigation')).length,
     closed: visibleDepartmentComplaints.filter(c => c.status.toLowerCase().includes('completed') || c.status.toLowerCase().includes('resolved')).length,
   };
-  const subordinates = getSubordinates(users, currentUser.id);
-
-  // One-time cleanup: remove specific Zone Officers from saved state
+  // Keep seeded dummy data in check (optional safety net)
   React.useEffect(() => {
     if (!currentUser) return;
-
     const blockedNames = new Set(["sanjay", "likhith"]);
     const toRemove = users.filter(
       u =>
@@ -333,7 +312,6 @@ export default function Level2Dashboard() {
         u.reportsTo === currentUser.id &&
         blockedNames.has((u.name || "").trim().toLowerCase())
     );
-
     toRemove.forEach(u => removeUser(u.id));
   }, [currentUser, removeUser, users]);
 
@@ -343,78 +321,10 @@ export default function Level2Dashboard() {
   };
 
   const handleEscalate = (complaintId: string) => {
+    if (!currentUser?.reportsTo) return;
     const superiorUser = users.find(u => u.id === currentUser.reportsTo);
     if (superiorUser) {
       escalateComplaint(complaintId, superiorUser.id);
-    }
-  };
-
-  const isMongoObjectId = (value?: string) => {
-    if (!value) return false;
-    return /^[a-f\d]{24}$/i.test(value);
-  };
-
-  const handleAddZoneOfficer = async (data: { name: string; email: string; phone?: string; areaId?: string }) => {
-    try {
-      const selectedAreaName = data.areaId
-        ? areas.find(a => a.id === data.areaId)?.name
-        : undefined;
-      const result = await governanceService.addOfficer({
-        name: data.name,
-        email: data.email,
-        phone: data.phone,
-        governanceType: governanceType.toLowerCase() as 'city' | 'panchayat',
-        level: 3,
-        // Only send these if they are real Mongo IDs (prevents Mongoose cast errors)
-        departmentId: isMongoObjectId(myDepartment?.id) ? myDepartment?.id : undefined,
-        departmentName: resolvedDepartmentName || myDepartmentFromApi?.name || myDepartment?.name,
-        areaId: isMongoObjectId(data.areaId) ? data.areaId : undefined,
-        areaName: selectedAreaName,
-        reportsTo: currentUser.id,
-      });
-
-      // Update local (mock) state for UI
-      const newUser = {
-        id: generateUserId(),
-        name: data.name,
-        email: data.email,
-        level: "LEVEL_3" as const,
-        governanceType,
-        department: myDepartment?.id,
-        areaId: data.areaId || areas.find(a => a.type === "ZONE" || a.type === "TALUK")?.id,
-        createdAt: new Date(),
-        status: "PENDING_INVITE" as const,
-        reportsTo: currentUser.id,
-      };
-      addUser(newUser);
-
-      toast({
-        title: t('level2.toast.officerAddedTitle', 'Officer Added Successfully!'),
-        description: result.emailSent
-          ? t(
-              'level2.toast.officerAddedEmailSent',
-              '{{name}} has been added. Login credentials sent to {{email}}',
-              { name: data.name, email: data.email }
-            )
-          : t(
-              'level2.toast.officerAddedEmailUnavailable',
-              '{{name}} has been added. Email service unavailable - credentials logged.',
-              { name: data.name }
-            ),
-        variant: result.emailSent ? "default" : "destructive",
-      });
-
-      if (!result.emailSent && result.credentials) {
-        console.log('Generated credentials (Email not sent):', result.credentials);
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : t('level2.errors.addOfficerFailed', 'Failed to add officer.');
-      toast({
-        title: t('level2.toast.errorAddingOfficerTitle', 'Error Adding Officer'),
-        description: message,
-        variant: "destructive",
-      });
-      console.error('Error adding zone officer:', error);
     }
   };
 
@@ -482,6 +392,11 @@ export default function Level2Dashboard() {
     { name: t('dashboard.stats.closed', 'Closed'), value: apiStats.closed }
   ].filter(d => d.value > 0);
 
+  // NOTE: Keep the render guard after all hooks to satisfy rules-of-hooks.
+  if (!currentUser || !governanceType) {
+    return null;
+  }
+
   return (
     <div className="flex h-screen w-full bg-gray-50 overflow-hidden">
       <DashboardSidebar routes={sidebar} />
@@ -526,10 +441,10 @@ export default function Level2Dashboard() {
           <Tabs
             value={activeTab}
             onValueChange={(value) => {
-              const next = (value || 'overview') as 'overview' | 'complaints' | 'zones';
+              const next = (value || 'overview') as 'overview' | 'complaints' | 'contractors';
               setActiveTab(next);
               if (next === 'complaints') navigate('/dashboard/level2/complaints');
-              else if (next === 'zones') navigate('/dashboard/level2/zones');
+              else if (next === 'contractors') navigate('/dashboard/level2/contractors');
               else navigate('/dashboard/level2');
             }}
             className="space-y-4"
@@ -537,7 +452,7 @@ export default function Level2Dashboard() {
             <TabsList>
               <TabsTrigger value="overview">{t('dashboard.overview', 'Overview')}</TabsTrigger>
               <TabsTrigger value="complaints">{t('dashboard.complaints', 'Complaints')}</TabsTrigger>
-              <TabsTrigger value="zones">{parentLabel}</TabsTrigger>
+              <TabsTrigger value="contractors">{t('level2.contractors.title', 'Contractor Monitoring')}</TabsTrigger>
             </TabsList>
 
             {/* Overview */}
@@ -612,58 +527,21 @@ export default function Level2Dashboard() {
                 <ComplaintsTable 
                   complaints={departmentComplaints} 
                   onComplaintUpdate={fetchComplaints}
+                  enableContractorAssignment
+                  assignmentDepartment={{
+                    departmentId: (myDepartmentFromApi?._id || '').toString() || undefined,
+                    departmentName: resolvedDepartmentName || undefined,
+                  }}
                 />
               )}
             </TabsContent>
 
-            {/* Zones */}
-            <TabsContent value="zones" className="space-y-4">
-              <UserListCard
-                users={subordinates}
-                title={t('level2.team.underYouTitle', '{{role}}s Under You', {
-                  role: level3RoleLabel,
-                })}
+            {/* Contractor Monitoring */}
+            <TabsContent value="contractors" className="space-y-4">
+              <ContractorMonitoring
+                defaultDepartmentId={(myDepartmentFromApi?._id || '').toString() || undefined}
+                defaultDepartmentName={resolvedDepartmentName || undefined}
               />
-              <Card>
-                <CardHeader>
-                  <CardTitle>
-                    {t('level2.team.addOfficerTitle', 'Add {{role}}', {
-                      role: level3RoleLabel,
-                    })}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <AddOfficerDialog
-                    roleTitle={level3RoleLabel}
-                    areas={(() => {
-                      const selectable = areas.filter(a => a.type === "ZONE" || a.type === "TALUK");
-                      if ((governanceType || "CITY").toString().toUpperCase() !== "CITY") return selectable;
-                      const order = new Map([
-                        ["east zone", 0],
-                        ["west zone", 1],
-                        ["central zone", 2],
-                        ["north zone", 3],
-                        ["south zone", 4],
-                      ]);
-                      return [...selectable].sort((a, b) => {
-                        const aKey = (a.name || "").toString().trim().toLowerCase();
-                        const bKey = (b.name || "").toString().trim().toLowerCase();
-                        const ai = order.get(aKey) ?? 999;
-                        const bi = order.get(bKey) ?? 999;
-                        if (ai !== bi) return ai - bi;
-                        return aKey.localeCompare(bKey);
-                      });
-                    })()}
-                    onSubmit={handleAddZoneOfficer}
-                    trigger={
-                      <Button>
-                        <Plus className="w-4 h-4 mr-2" />
-                        {t('common.add', 'Add')} {level3RoleLabel}
-                      </Button>
-                    }
-                  />
-                </CardContent>
-              </Card>
             </TabsContent>
           </Tabs>
         </div>

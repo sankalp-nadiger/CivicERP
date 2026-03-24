@@ -73,7 +73,31 @@ const ComplaintSchema = new mongoose.Schema({
   location: {
     type: String,
     required: false,
-  }
+  },
+
+  // Contractor assignment (Level 2 workflow)
+  assignedContractorId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Contractor',
+    required: false,
+    default: undefined,
+  },
+  assignedContractorName: {
+    type: String,
+    required: false,
+    default: '',
+  },
+  assignedAt: {
+    type: Date,
+    required: false,
+    default: undefined,
+  },
+  assignedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: false,
+    default: undefined,
+  },
 });
 
 const Complaint = mongoose.model("Complaint", ComplaintSchema);

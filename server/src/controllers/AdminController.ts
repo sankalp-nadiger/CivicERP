@@ -20,17 +20,42 @@ class AdminController {
     async updateCurStatusAndComments(req: Request, res: Response) {
         try {
             const { complaint_id, comments, status } = req.body;
+
+            if (!complaint_id || typeof complaint_id !== 'string') {
+                res.status(400).json({ message: 'complaint_id is required' });
+                return;
+            }
+            if (!status || typeof status !== 'string' || !status.trim()) {
+                res.status(400).json({ message: 'status is required' });
+                return;
+            }
+
+            const normalizeStatus = (raw: string) => {
+                const trimmed = String(raw || '').trim();
+                const lower = trimmed.toLowerCase();
+
+                if (lower === 'todo' || lower.includes('registered')) return 'todo';
+                if (lower === 'in-progress' || lower === 'in progress' || lower === 'progress') return 'in-progress';
+                if (lower.includes('investigation')) return 'Under Investigation';
+                // Canonicalize closed states: the rest of the app treats "resolved" as the closed terminal state.
+                if (lower === 'completed' || lower === 'closed') return 'resolved';
+                if (lower === 'resolved') return 'resolved';
+
+                return trimmed;
+            };
+
+            const nextStatus = normalizeStatus(status);
             let complaintToBeUpdated = await Complaint.findOne({ complaint_id });
             
             if (complaintToBeUpdated != null) {
                 const commentString = [
-                    status.toLowerCase(),
+                    nextStatus,
                     "Admin",
                     new Date().toISOString(),
-                    comments || `Marked as ${status}`
+                    typeof comments === 'string' && comments.trim() ? comments : `Marked as ${nextStatus}`
                 ].join('|');
-                console.log(status)
-                complaintToBeUpdated.status = status === "completed" ? "resolved" : "in-progress";
+
+                complaintToBeUpdated.status = nextStatus;
                 complaintToBeUpdated.comments.push(commentString);
                 complaintToBeUpdated.lastupdate = new Date(Date.now());
                 await complaintToBeUpdated.save();
@@ -40,7 +65,7 @@ class AdminController {
                 return;
             }
             
-            res.status(203).json({ "message": "Updated Successfully", "data": complaintToBeUpdated });
+            res.status(200).json({ "message": "Updated Successfully", "data": complaintToBeUpdated });
         } catch (e) {
             res.status(400).json({ "message": "Something Went Wrong" });
         }
