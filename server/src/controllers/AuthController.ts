@@ -82,15 +82,24 @@ class AuthController{
 
             const token = jwt.sign({ id: validUser._id, role: validUser.role }, process.env.JWT_SECRET || "abcdef");
 
-            const userObject = validUser.toObject();
-            const { password: _hashedPassword, ...rest } = userObject;
             const expiryDate = new Date(Date.now() + 3600000);
 
             res
                 .cookie('access_token', token, { httpOnly: true, expires: expiryDate })
                 .header('Authorization', 'Bearer ' + token)
                 .status(200)
-                .json({ ...rest, token, contractor: contractor || null });
+                .json({
+                    token,
+                    user: {
+                        _id: (validUser as any)._id,
+                        username: (validUser as any).username,
+                        email: (validUser as any).email,
+                        role: (validUser as any).role,
+                        governanceType: (validUser as any).governanceType,
+                        departmentId: (validUser as any).departmentId,
+                    },
+                    contractor: contractor || null,
+                });
         } catch (error: any) {
             res.status(400).json({ message: error?.message || 'Contractor signin failed' });
         }
