@@ -678,6 +678,62 @@ class ComplaintController {
         }
     }
 
+    // Contractor view: return complaints assigned to logged-in contractor account.
+    // GET /complaints/assigned/me
+    async getAssignedComplaintsForContractor(req: any, res: Response) {
+        try {
+            const userId = req.user?.id;
+            const lang = normalizePreferredLang(req.query?.lang);
+            if (!userId) {
+                res.status(401).json({ message: 'Not authenticated' });
+                return;
+            }
+
+            const user = await User.findById(userId).select('_id email role').lean();
+            if (!user) {
+                res.status(401).json({ message: 'User not found' });
+                return;
+            }
+
+            const userEmail = String((user as any).email || '').trim().toLowerCase();
+            const contractor = await Contractor.findOne({
+                $or: [
+                    { userId: (user as any)._id },
+                    ...(userEmail ? [{ email: userEmail }] : []),
+                ],
+            })
+                .select('_id name email')
+                .lean();
+
+            if (!contractor) {
+                res.status(200).json({ complaints: [], message: 'No contractor profile linked to this account.' });
+                return;
+            }
+
+            const contractorName = String((contractor as any).name || '').trim();
+            const query: any = {
+                $or: [
+                    { assignedContractorId: (contractor as any)._id },
+                    ...(contractorName ? [{ assignedContractorName: contractorName }] : []),
+                ],
+            };
+
+            const complaints = await Complaint.find(query)
+                .populate('raisedBy', 'username uuid email')
+                .sort({ lastupdate: -1, date: -1 });
+
+            for (const complaint of complaints) {
+                const translatedText = await getTranslatedComplaint(complaint, lang);
+                (complaint as any).complaint = translatedText;
+            }
+
+            res.status(200).json({ complaints, contractorId: (contractor as any)._id });
+        } catch (e: any) {
+            console.error('getAssignedComplaintsForContractor error:', e);
+            res.status(500).json({ message: e?.message || 'Internal server error' });
+        }
+    }
+
     // Assign a complaint to a contractor (Department Head / Level 2 workflow)
     // PUT /complaints/assign
     // Body: { complaint_id: string, contractorId: string }

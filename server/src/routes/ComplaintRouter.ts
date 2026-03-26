@@ -11,6 +11,9 @@ complaintRouter.post('/myComplaint',ComplaintController.getMyComplaints);
 // Officer-scoped complaints (Zone/Ward officers)
 complaintRouter.get('/scoped', verifyToken, ComplaintController.getScopedComplaints);
 
+// Contractor-scoped complaints (logged-in contractor)
+complaintRouter.get('/assigned/me', verifyToken, ComplaintController.getAssignedComplaintsForContractor);
+
 // Level 2 workflow: assign a complaint to a contractor
 complaintRouter.put('/assign', verifyToken, ComplaintController.assignComplaintToContractor);
 
