@@ -1,5 +1,8 @@
 import { Request, Response } from 'express';
 import { Contractor, Department, User } from '../models/index.js';
+import bcryptjs from 'bcryptjs';
+import { v4 } from 'uuid';
+import { generatePassword, sendCredentialsEmail } from '../utils/emailService.js';
 
 const normalize = (value: unknown) =>
   String(value ?? '')
@@ -88,6 +91,97 @@ class ContractorController {
     return Department.findOne({ ...query, $or: or }).select('_id name email userId level').lean();
   }
 
+  private parseGovernanceLevel(rawLevel: unknown): 'LEVEL_1' | 'LEVEL_2' | null {
+    const raw = String(rawLevel || '').trim().toUpperCase();
+    if (!raw) return null;
+    if (raw === 'LEVEL_1' || /LEVEL\s*[-_]?1/.test(raw) || raw === '1') return 'LEVEL_1';
+    if (raw === 'LEVEL_2' || /LEVEL\s*[-_]?2/.test(raw) || raw === '2') return 'LEVEL_2';
+    return null;
+  }
+
+  private async resolveEffectiveAdminLevel(requester: any): Promise<'LEVEL_1' | 'LEVEL_2' | null> {
+    const parsed = this.parseGovernanceLevel((requester as any)?.governanceLevel);
+    if (parsed) return parsed;
+
+    const role = String((requester as any)?.role || '').trim().toLowerCase();
+
+    // Support legacy/non-governance role names used by older data/frontend mappings.
+    if (role === 'department-head' || role === 'department_head' || role === 'dept-head' || role === 'dept_head' || role === 'level_2' || role === 'level2') {
+      return 'LEVEL_2';
+    }
+    if (role === 'mcc' || role === 'level_1' || role === 'level1') {
+      return 'LEVEL_1';
+    }
+
+    if (role !== 'admin' && role !== 'authority') return null;
+
+    const requesterDeptId = String((requester as any)?.departmentId || '').trim();
+    if (requesterDeptId && /^[a-f\d]{24}$/i.test(requesterDeptId)) {
+      return 'LEVEL_2';
+    }
+
+    const dept = await this.getDepartmentForLevel2Email(
+      String((requester as any)?.email || ''),
+      String((requester as any)?.governanceType || '')
+    );
+    if (dept?._id) return 'LEVEL_2';
+
+    // Backward compatibility for legacy admin accounts with missing governanceLevel.
+    return 'LEVEL_1';
+  }
+
+  private async upsertContractorUser(params: {
+    email: string;
+    name: string;
+    phoneNumber: string;
+    governanceType?: string;
+    departmentId?: string;
+  }) {
+    const password = generatePassword('Ctr');
+    const hashedPassword = bcryptjs.hashSync(password, 10);
+
+    const normalizedEmail = String(params.email).trim().toLowerCase();
+    let user = await User.findOne({ email: normalizedEmail });
+
+    if (user) {
+      user.password = hashedPassword;
+      user.role = 'Contractor';
+      if (!user.phoneNo && params.phoneNumber) user.phoneNo = params.phoneNumber;
+      if (params.governanceType) {
+        const gt = String(params.governanceType).trim().toUpperCase();
+        if (gt === 'CITY' || gt === 'PANCHAYAT') {
+          user.governanceType = gt as 'CITY' | 'PANCHAYAT';
+        }
+      }
+      if (params.departmentId) user.departmentId = params.departmentId;
+      await user.save();
+    } else {
+      const usernameBase = String(params.name || 'contractor')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+      user = new User({
+        username: `${usernameBase || 'contractor'}_${Date.now()}`,
+        email: normalizedEmail,
+        password: hashedPassword,
+        uuid: v4(),
+        phoneNo: params.phoneNumber || '0000000000',
+        role: 'Contractor',
+        governanceType:
+          String(params.governanceType || '').trim().toUpperCase() === 'CITY'
+            ? 'CITY'
+            : String(params.governanceType || '').trim().toUpperCase() === 'PANCHAYAT'
+            ? 'PANCHAYAT'
+            : undefined,
+        departmentId: params.departmentId || undefined,
+        previous_complaints: [],
+      });
+      await user.save();
+    }
+
+    return { user, password };
+  }
+
   // GET /contractors
   // Query: status, departmentId, departmentName, zone, ward
   async list(req: Request, res: Response) {
@@ -98,8 +192,8 @@ class ContractorController {
         return;
       }
 
-      const level = String((requester as any).governanceLevel || '').toUpperCase();
-      if (level !== 'LEVEL_1' && level !== 'LEVEL_2') {
+      const level = await this.resolveEffectiveAdminLevel(requester as any);
+      if (!level) {
         res.status(403).json({ message: 'Only administrators can view contractors.' });
         return;
       }
@@ -154,7 +248,7 @@ class ContractorController {
       }
 
       const contractors = await Contractor.find(query)
-        .select('_id name departmentId departmentName phoneNumber latitude longitude availabilityStatus currentAssignedTask zone ward lastLocationUpdateAt')
+        .select('_id name email userId departmentId departmentName phoneNumber area latitude longitude availabilityStatus currentAssignedTask zone ward lastLocationUpdateAt')
         .sort({ updatedAt: -1 })
         .lean();
 
@@ -175,9 +269,9 @@ class ContractorController {
         return;
       }
 
-      const level = String((requester as any).governanceLevel || '').toUpperCase();
-      if (level !== 'LEVEL_1') {
-        res.status(403).json({ message: 'Only Level 1 administrators can manage contractors.' });
+      const level = await this.resolveEffectiveAdminLevel(requester as any);
+      if (!level) {
+        res.status(403).json({ message: 'Only Level 1/2 administrators can manage contractors.' });
         return;
       }
 
@@ -187,6 +281,7 @@ class ContractorController {
         departmentId,
         departmentName,
         phoneNumber,
+        area,
         latitude,
         longitude,
         availability_status,
@@ -195,28 +290,37 @@ class ContractorController {
         currentAssignedTask,
         zone,
         ward,
+        email,
       } = req.body || {};
+
+      const normalizedEmail = String(email || '').trim().toLowerCase();
+      const isUpdate = Boolean(id && /^[a-f\d]{24}$/i.test(String(id)));
+
+      if (!isUpdate && !normalizedEmail) {
+        res.status(400).json({ message: 'email is required when creating a contractor' });
+        return;
+      }
+
+      if (normalizedEmail && !/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
+        res.status(400).json({ message: 'Invalid email' });
+        return;
+      }
 
       const resolvedStatus = asUpperStatus(availabilityStatus ?? availability_status) || 'AVAILABLE';
 
-      if (!name || !departmentName || !phoneNumber) {
-        res.status(400).json({ message: 'Missing required fields: name, departmentName, phoneNumber' });
+      if (!name || !phoneNumber || !String(area || '').trim() || (level === 'LEVEL_1' && !departmentName)) {
+        res.status(400).json({ message: 'Missing required fields: name, phoneNumber, area, and departmentName (for Level 1)' });
         return;
       }
 
       const lat = Number(latitude);
       const lng = Number(longitude);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-        res.status(400).json({ message: 'Invalid latitude/longitude' });
-        return;
-      }
 
       const update: any = {
         name: String(name).trim(),
         departmentName: String(departmentName).trim(),
         phoneNumber: String(phoneNumber).trim(),
-        latitude: lat,
-        longitude: lng,
+        area: String(area || '').trim(),
         availabilityStatus: resolvedStatus,
         currentAssignedTask: String(currentAssignedTask ?? current_assigned_task ?? '').trim(),
         zone: String(zone ?? '').trim(),
@@ -224,21 +328,81 @@ class ContractorController {
         lastLocationUpdateAt: new Date(),
       };
 
-      if (departmentId && /^[a-f\d]{24}$/i.test(String(departmentId))) {
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        update.latitude = lat;
+        update.longitude = lng;
+      }
+
+      if (normalizedEmail) {
+        update.email = normalizedEmail;
+      }
+
+      if (level === 'LEVEL_2') {
+        const dept = await this.getDepartmentForLevel2Email(
+          String((requester as any).email || ''),
+          String((requester as any).governanceType || '')
+        );
+        if (!dept?._id) {
+          res.status(403).json({ message: 'Department is not configured for this account.' });
+          return;
+        }
+
+        update.departmentId = (dept as any)._id;
+        update.departmentName = String((dept as any).name || '').trim() || String(departmentName).trim();
+      }
+
+      if (level === 'LEVEL_1' && departmentId && /^[a-f\d]{24}$/i.test(String(departmentId))) {
         update.departmentId = departmentId;
       }
 
       let contractor;
-      if (id && /^[a-f\d]{24}$/i.test(String(id))) {
+      if (isUpdate) {
         contractor = await Contractor.findByIdAndUpdate(id, update, { new: true, upsert: true });
       } else {
         contractor = await Contractor.create(update);
       }
 
-      res.status(200).json({ contractor });
+      let emailSent = false;
+      let credentials: { email: string; password: string } | undefined;
+
+      if (contractor && (normalizedEmail || (contractor as any).email)) {
+        const loginEmail = String(normalizedEmail || (contractor as any).email || '').trim().toLowerCase();
+
+        if (!isUpdate) {
+          const departmentIdForUser = (contractor as any)?.departmentId
+            ? String((contractor as any).departmentId)
+            : undefined;
+          const { user, password } = await this.upsertContractorUser({
+            email: loginEmail,
+            name: String((contractor as any).name || name),
+            phoneNumber: String((contractor as any).phoneNumber || phoneNumber),
+            governanceType: String((requester as any).governanceType || ''),
+            departmentId: departmentIdForUser,
+          });
+
+          if (!(contractor as any).userId || String((contractor as any).userId) !== String((user as any)._id)) {
+            (contractor as any).userId = (user as any)._id;
+          }
+          if (!(contractor as any).email) {
+            (contractor as any).email = loginEmail;
+          }
+          await (contractor as any).save();
+
+          emailSent = await sendCredentialsEmail({
+            email: loginEmail,
+            name: String((contractor as any).name || name),
+            password,
+            role: 'Contractor',
+          });
+          credentials = { email: loginEmail, password };
+        }
+      }
+
+      res.status(200).json({ contractor, emailSent, credentials });
     } catch (error: any) {
       console.error('Error upserting contractor:', error);
-      res.status(500).json({ message: error?.message || 'Failed to upsert contractor' });
+      const status = error?.code === 11000 ? 409 : 500;
+      res.status(status).json({ message: error?.message || 'Failed to upsert contractor' });
     }
   }
 

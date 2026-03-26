@@ -8,6 +8,18 @@ const ComplaintSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  complaintOriginal: {
+    type: String,
+  },
+  originalLanguage: {
+    type: String,
+    default: 'en',
+  },
+  translations: {
+    type: Map,
+    of: String,
+    default: {},
+  },
   summarized_complaint:{
     type:String,
     required:true,

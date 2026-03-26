@@ -3,11 +3,12 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { GovernanceProvider } from "@/contexts/GovernanceContext";
 import { SidebarProvider } from "@/components/ui/sidebar";
+import ChatbotWidget from "@/components/ChatbotWidget";
 import Login from "./pages/Login";
 import {
   Level1Dashboard,
@@ -52,47 +53,54 @@ const ProtectedDashboardRoute: React.FC<{ level: 1 | 2 | 3 | 4; children: React.
 };
 
 const AppRoutes = () => {
-  return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/" element={<Navigate to="/login" replace />} />
+  const location = useLocation();
+  const showChatbot = location.pathname.startsWith('/dashboard/');
 
-      {/* Governance Platform Routes */}
-      <Route
-        path="/dashboard/level1/*"
-        element={
-          <ProtectedDashboardRoute level={1}>
-            <Level1Dashboard />
-          </ProtectedDashboardRoute>
-        }
-      />
-      <Route
-        path="/dashboard/level2/*"
-        element={
-          <ProtectedDashboardRoute level={2}>
-            <Level2Dashboard />
-          </ProtectedDashboardRoute>
-        }
-      />
-      <Route
-        path="/dashboard/level3/*"
-        element={
-          <ProtectedDashboardRoute level={3}>
-            <Level3Dashboard />
-          </ProtectedDashboardRoute>
-        }
-      />
-      <Route
-        path="/dashboard/level4/*"
-        element={
-          <ProtectedDashboardRoute level={4}>
-            <Level4Dashboard />
-          </ProtectedDashboardRoute>
-        }
-      />
-      
-      <Route path="*" element={<Navigate to="/login" replace />} />
-    </Routes>
+  return (
+    <>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/" element={<Navigate to="/login" replace />} />
+
+        {/* Governance Platform Routes */}
+        <Route
+          path="/dashboard/level1/*"
+          element={
+            <ProtectedDashboardRoute level={1}>
+              <Level1Dashboard />
+            </ProtectedDashboardRoute>
+          }
+        />
+        <Route
+          path="/dashboard/level2/*"
+          element={
+            <ProtectedDashboardRoute level={2}>
+              <Level2Dashboard />
+            </ProtectedDashboardRoute>
+          }
+        />
+        <Route
+          path="/dashboard/level3/*"
+          element={
+            <ProtectedDashboardRoute level={3}>
+              <Level3Dashboard />
+            </ProtectedDashboardRoute>
+          }
+        />
+        <Route
+          path="/dashboard/level4/*"
+          element={
+            <ProtectedDashboardRoute level={4}>
+              <Level4Dashboard />
+            </ProtectedDashboardRoute>
+          }
+        />
+
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+
+      {showChatbot ? <ChatbotWidget /> : null}
+    </>
   );
 };
 

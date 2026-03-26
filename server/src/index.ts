@@ -50,6 +50,20 @@ app.use(cookieParser());
 app.use(mainRouter);
 
 /* ========================
+   Not Found + Error Handling
+======================== */
+
+app.use((req, res) => {
+  res.status(404).json({ message: `Route not found: ${req.method} ${req.originalUrl}` });
+});
+
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  const statusCode = typeof err?.statusCode === 'number' ? err.statusCode : (typeof err?.status === 'number' ? err.status : 500);
+  const message = typeof err?.message === 'string' && err.message.trim() ? err.message : 'Internal server error';
+  res.status(statusCode).json({ message });
+});
+
+/* ========================
    Server Setup
 ======================== */
 

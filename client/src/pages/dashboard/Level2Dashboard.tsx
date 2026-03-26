@@ -12,11 +12,13 @@ import { useTranslation } from "react-i18next";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { StatCard } from "@/components/dashboard/DashboardComponents";
 import { getAllComplaints, Complaint as ApiComplaint } from "@/services/complaintService";
+import { predictIssues, type PredictInsight } from "@/services/analyticsService";
 import { ComplaintsTable } from "@/components/dashboard/shared/ComplaintsTable";
 import { ComplaintsHeatmap } from "@/components/dashboard/shared/ComplaintsHeatmap";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import * as governanceService from "@/services/governanceService";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -67,6 +69,8 @@ export default function Level2Dashboard() {
   const [newStatus, setNewStatus] = React.useState("");
   const [apiComplaints, setApiComplaints] = useState<ApiComplaint[]>([]);
   const [isLoadingComplaints, setIsLoadingComplaints] = useState(true);
+  const [predictInsights, setPredictInsights] = useState<PredictInsight[]>([]);
+  const [isPredicting, setIsPredicting] = useState(false);
   const [myDepartmentFromApi, setMyDepartmentFromApi] = useState<governanceService.BackendDepartment | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'complaints' | 'contractors'>('overview');
 
@@ -115,6 +119,40 @@ export default function Level2Dashboard() {
   React.useEffect(() => {
     setActiveTab(getActiveTabFromPath());
   }, [getActiveTabFromPath]);
+
+  const handlePredictIssues = React.useCallback(async () => {
+    setIsPredicting(true);
+    try {
+      const insights = await predictIssues();
+      setPredictInsights(insights);
+      if (insights.length === 0) {
+        toast({
+          title: t('analytics.predict.toastEmptyTitle', 'No Predictions'),
+          description: t(
+            'analytics.predict.toastEmptyDesc',
+            'No insights were generated from the last 7 days. This typically happens when there are too few recent complaints with valid locations/coordinates.'
+          ),
+        });
+      } else {
+        toast({
+          title: t('analytics.predict.toastTitle', 'Prediction Complete'),
+          description: t(
+            'analytics.predict.toastDesc',
+            `Loaded ${insights.length} predictive insight${insights.length === 1 ? '' : 's'} based on the last 7 days.`
+          ),
+        });
+      }
+    } catch (e) {
+      const message = e instanceof Error ? e.message : t('analytics.predict.error', 'Failed to fetch insights');
+      toast({
+        title: t('common.error', 'Error'),
+        description: message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsPredicting(false);
+    }
+  }, [t, toast]);
 
   // Guard legacy URLs (previously /zones was used for Zone/Taluk management)
   React.useEffect(() => {
@@ -513,6 +551,70 @@ export default function Level2Dashboard() {
                 complaints={departmentComplaints}
                 title={t("dashboard.heatmap.title", "Complaints Heatmap")}
               />
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>{t('analytics.predict.title', 'Predict Issues')}</CardTitle>
+                  <CardDescription>
+                    {t(
+                      'analytics.predict.subtitle',
+                      'Uses last 7 days of complaints, location clustering, and weather signals.'
+                    )}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <Button onClick={handlePredictIssues} disabled={isPredicting}>
+                      {isPredicting
+                        ? t('analytics.predict.loading', 'Predicting...')
+                        : t('analytics.predict.button', 'Predict Issues')}
+                    </Button>
+                    <p className="text-sm text-gray-500">
+                      {t('analytics.predict.note', 'Results are rule-based and for planning support.')}
+                    </p>
+                  </div>
+
+                  {predictInsights.length === 0 ? (
+                    <p className="text-sm text-gray-500">
+                      {t(
+                        'analytics.predict.empty',
+                        'No insights were generated. Ensure there are recent (last 7 days) complaints with location values that include coordinates (for example, "Location: 12.292000, 76.645000"), then click Predict Issues again.'
+                      )}
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {predictInsights.map((insight, idx) => (
+                        <div key={idx} className="border rounded-md p-4 bg-white">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="font-medium text-gray-900">{insight.issue}</div>
+                            <Badge
+                              variant={
+                                String(insight.confidence).toLowerCase() === 'high'
+                                  ? 'destructive'
+                                  : String(insight.confidence).toLowerCase() === 'medium'
+                                    ? 'secondary'
+                                    : 'outline'
+                              }
+                            >
+                              {t('analytics.predict.confidence', 'Confidence')}: {insight.confidence}
+                            </Badge>
+                          </div>
+                          <div className="text-sm text-gray-600 mt-2">
+                            <div>
+                              <span className="font-medium text-gray-700">{t('analytics.predict.location', 'Location')}:</span>{' '}
+                              {insight.location}
+                            </div>
+                            <div className="mt-1">
+                              <span className="font-medium text-gray-700">{t('analytics.predict.recommendation', 'Recommendation')}:</span>{' '}
+                              {insight.recommendation}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </TabsContent>
 
             {/* Complaints */}

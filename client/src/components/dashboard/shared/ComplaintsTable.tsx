@@ -34,6 +34,25 @@ import { Eye, Filter, Search, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
 import { GoogleMapsEmbed } from '@/components/GoogleMapsEmbed';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
+const resolveProofUrl = (rawValue: unknown): string | null => {
+  const raw = String(rawValue ?? '').trim();
+  if (!raw) return null;
+
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/^\/\//.test(raw)) return `${window.location.protocol}${raw}`;
+
+  // Support legacy values that may be stored as server-relative paths.
+  if (raw.startsWith('/')) return `${API_BASE_URL.replace(/\/$/, '')}${raw}`;
+
+  return null;
+};
+
+const isLikelyImageUrl = (url: string): boolean => {
+  return /(\.png|\.jpe?g|\.webp|\.gif|\.bmp|\.svg|\.heic|\.heif)(\?|#|$)/i.test(url);
+};
+
 interface ComplaintsTableProps {
   complaints: Complaint[];
   onComplaintUpdate?: () => void;
@@ -305,6 +324,7 @@ interface ComplaintDetailsViewProps {
 function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, isUpdating, enableContractorAssignment, assignmentDepartment }: ComplaintDetailsViewProps) {
   const [newStatus, setNewStatus] = useState(complaint.status);
   const [comments, setComments] = useState('');
+  const [proofImageLoadError, setProofImageLoadError] = useState(false);
   const { t, i18n } = useTranslation();
 
   const [contractors, setContractors] = useState<Contractor[]>([]);
@@ -326,6 +346,7 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, i
     setNewStatus(complaint.status);
     setComments('');
     setSelectedContractorId('');
+    setProofImageLoadError(false);
   }, [complaint._id, complaint.complaint_id, complaint.status]);
 
   useEffect(() => {
@@ -359,6 +380,8 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, i
 
   const issueCategories = Array.isArray(complaint.issue_category) ? complaint.issue_category : [];
   const commentHistory = Array.isArray(complaint.comments) ? complaint.comments : [];
+  const proofUrl = resolveProofUrl(complaint.complaint_proof);
+  const canPreviewImage = Boolean(proofUrl && isLikelyImageUrl(proofUrl) && !proofImageLoadError);
 
   const safeFormatDate = (value: unknown, pattern: string) => {
     try {
@@ -521,14 +544,34 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, i
       {complaint.complaint_proof && (
         <div>
           <label className="text-sm font-medium text-gray-700">{t('complaintsTable.fields.proof', 'Proof')}</label>
-          <a
-            href={complaint.complaint_proof}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm text-blue-600 hover:underline mt-1 block"
-          >
-            {t('complaintsTable.viewProof', 'View Proof Document')}
-          </a>
+          {proofUrl ? (
+            <div className="mt-2 space-y-3">
+              {canPreviewImage && (
+                <img
+                  src={proofUrl}
+                  alt={t('complaintsTable.fields.proof', 'Proof')}
+                  className="max-h-72 w-full rounded border object-contain bg-gray-50"
+                  loading="lazy"
+                  onError={() => setProofImageLoadError(true)}
+                />
+              )}
+              <a
+                href={proofUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-blue-600 hover:underline block"
+              >
+                {t('complaintsTable.viewProof', 'View Proof Document')}
+              </a>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 mt-1">
+              {t(
+                'complaintsTable.proofInvalid',
+                'Proof link is not a valid URL.'
+              )}
+            </p>
+          )}
         </div>
       )}
 

@@ -15,11 +15,6 @@ const extractLatLng = (raw: unknown): { lat: number; lng: number } | null => {
     Math.abs(lat) <= 90 &&
     Math.abs(lng) <= 180;
 
-  // Common formats we accept:
-  // - "Location: 28.613900, 77.209000"
-  // - "28.6139,77.2090"
-  // - "lat: 28.6139 lng: 77.2090"
-  // - "(28.6139 77.2090)" (space separated)
   const commaPair = text.match(/(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)/);
   if (commaPair) {
     const lat = Number(commaPair[1]);
@@ -34,8 +29,6 @@ const extractLatLng = (raw: unknown): { lat: number; lng: number } | null => {
     if (isValid(lat, lng)) return { lat, lng };
   }
 
-  // Fallback: pull out all numbers and try adjacent pairs.
-  // This helps when locations are stored as "28.6139 77.2090" or JSON-ish strings.
   const numberMatches = text.match(/-?\d+(?:\.\d+)?/g);
   if (!numberMatches || numberMatches.length < 2) return null;
   for (let i = 0; i < numberMatches.length - 1; i++) {
@@ -118,7 +111,7 @@ export const ComplaintsHeatmap: React.FC<{
       <CardContent>
         {weightedPoints.length === 0 ? (
           <div className="rounded border bg-white p-6 text-sm text-gray-600">
-            No mappable complaint locations found. Add locations as "Location: lat, lng" to see the heatmap.
+            No mappable complaint locations found. Store location as coordinates like "Location: lat, lng".
           </div>
         ) : (
           <div className="overflow-hidden rounded border bg-white">

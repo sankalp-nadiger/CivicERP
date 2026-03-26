@@ -26,11 +26,14 @@ export type AvailabilityStatus = 'AVAILABLE' | 'BUSY';
 export interface Contractor {
   _id: string;
   name: string;
+  email?: string;
+  userId?: string;
   departmentId?: string;
   departmentName: string;
   phoneNumber: string;
-  latitude: number;
-  longitude: number;
+  area?: string;
+  latitude?: number;
+  longitude?: number;
   availabilityStatus: AvailabilityStatus;
   currentAssignedTask?: string;
   zone?: string;
@@ -40,6 +43,29 @@ export interface Contractor {
 
 export interface ListContractorsResponse {
   contractors: Contractor[];
+}
+
+export interface CreateContractorPayload {
+  name: string;
+  email: string;
+  phoneNumber: string;
+  area: string;
+  latitude?: number;
+  longitude?: number;
+  departmentId?: string;
+  departmentName?: string;
+  availabilityStatus?: AvailabilityStatus;
+  zone?: string;
+  ward?: string;
+}
+
+export interface CreateContractorResponse {
+  contractor: Contractor;
+  emailSent?: boolean;
+  credentials?: {
+    email: string;
+    password: string;
+  };
 }
 
 export const listContractors = async (params?: {
@@ -80,4 +106,29 @@ export const listContractors = async (params?: {
 
   const data = (await response.json()) as ListContractorsResponse;
   return data.contractors || [];
+};
+
+export const createContractor = async (
+  payload: CreateContractorPayload
+): Promise<CreateContractorResponse> => {
+  const response = await fetch(`${API_BASE_URL}/contractors`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  });
+
+  const raw = await response.text();
+  let parsed: any = {};
+  try {
+    parsed = raw ? JSON.parse(raw) : {};
+  } catch {
+    parsed = { message: raw };
+  }
+
+  if (!response.ok) {
+    throw new Error(parsed?.message || `Failed to create contractor (${response.status})`);
+  }
+
+  return parsed as CreateContractorResponse;
 };

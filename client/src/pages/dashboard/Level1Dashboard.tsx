@@ -45,6 +45,7 @@ import { Users, Building2, MapPin, FileText, Plus, AlertCircle, CheckCircle, Tra
 import { ComplaintsTable } from "@/components/dashboard/shared/ComplaintsTable";
 import { ComplaintsHeatmap } from "@/components/dashboard/shared/ComplaintsHeatmap";
 import { getAllComplaints, Complaint as ApiComplaint } from "@/services/complaintService";
+import { predictIssues, type PredictInsight } from "@/services/analyticsService";
 import * as governanceService from "@/services/governanceService";
 import {
   AlertDialog,
@@ -83,6 +84,8 @@ export default function Level1Dashboard() {
   const [activeSection, setActiveSection] = useState('overview');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<{type: 'department' | 'area' | 'user', id: string, name: string} | null>(null);
+  const [predictInsights, setPredictInsights] = useState<PredictInsight[]>([]);
+  const [isPredicting, setIsPredicting] = useState(false);
 
   const visibleComplaints = React.useMemo(() => {
     return apiComplaints.filter(c => {
@@ -306,6 +309,27 @@ export default function Level1Dashboard() {
     }
   };
 
+  const handlePredictIssues = useCallback(async () => {
+    setIsPredicting(true);
+    try {
+      const insights = await predictIssues();
+      setPredictInsights(insights);
+      toast({
+        title: t('analytics.predict.toastTitle', 'Prediction Complete'),
+        description: t('analytics.predict.toastDesc', 'Loaded predictive insights based on the last 7 days.'),
+      });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : t('analytics.predict.error', 'Failed to fetch insights');
+      toast({
+        title: t('common.error', 'Error'),
+        description: message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsPredicting(false);
+    }
+  }, [t, toast]);
+
   const handleDelete = () => {
     if (!itemToDelete) return;
 
@@ -479,6 +503,68 @@ export default function Level1Dashboard() {
                   complaints={visibleComplaints}
                   title={t("dashboard.heatmap.title", "Complaints Heatmap")}
                 />
+
+                {/* Predict Issues Section */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>{t('analytics.predict.title', 'Predict Issues')}</CardTitle>
+                    <CardDescription>
+                      {t(
+                        'analytics.predict.subtitle',
+                        'Uses last 7 days of complaints, location clustering, and weather signals.'
+                      )}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <Button onClick={handlePredictIssues} disabled={isPredicting}>
+                        {isPredicting
+                          ? t('analytics.predict.loading', 'Predicting...')
+                          : t('analytics.predict.button', 'Predict Issues')}
+                      </Button>
+                      <p className="text-sm text-gray-500">
+                        {t('analytics.predict.note', 'Results are rule-based and for planning support.')}
+                      </p>
+                    </div>
+
+                    {predictInsights.length === 0 ? (
+                      <p className="text-sm text-gray-500">
+                        {t('analytics.predict.empty', 'No insights yet. Click Predict Issues to generate.')}
+                      </p>
+                    ) : (
+                      <div className="space-y-3">
+                        {predictInsights.map((insight, idx) => (
+                          <div key={idx} className="border rounded-md p-4 bg-white">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="font-medium text-gray-900">{insight.issue}</div>
+                              <Badge
+                                variant={
+                                  String(insight.confidence).toLowerCase() === 'high'
+                                    ? 'destructive'
+                                    : String(insight.confidence).toLowerCase() === 'medium'
+                                      ? 'secondary'
+                                      : 'outline'
+                                }
+                              >
+                                {t('analytics.predict.confidence', 'Confidence')}: {insight.confidence}
+                              </Badge>
+                            </div>
+                            <div className="text-sm text-gray-600 mt-2">
+                              <div>
+                                <span className="font-medium text-gray-700">{t('analytics.predict.location', 'Location')}:</span>{' '}
+                                {insight.location}
+                              </div>
+                              <div className="mt-1">
+                                <span className="font-medium text-gray-700">{t('analytics.predict.recommendation', 'Recommendation')}:</span>{' '}
+                                {insight.recommendation}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
               </div>
             )}
 

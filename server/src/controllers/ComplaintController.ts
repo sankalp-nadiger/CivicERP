@@ -5,6 +5,7 @@ import bcryptjs from 'bcryptjs';
 import client from "../utils/RedisSetup.js";
 import axios from "axios";
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { getTranslatedComplaint } from '../services/translationService.js';
 
 const normalize = (value: unknown): string =>
     String(value ?? '')
@@ -12,6 +13,12 @@ const normalize = (value: unknown): string =>
         .replace(/[^a-z0-9\s]/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
+
+const normalizePreferredLang = (value: unknown): string => {
+    const raw = String(value ?? 'en').trim().toLowerCase();
+    const base = raw.split('-')[0] || 'en';
+    return ['en', 'hi', 'kn'].includes(base) ? base : 'en';
+};
 
 const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -179,8 +186,21 @@ class ComplaintController {
     }
 
     async addComplaint(req: Request, res: Response) {
-        const { uuid, complaint, complaint_proof, issue_category, title, location, departmentId: explicitDepartmentId, areaId: explicitAreaId, summarized_complaint: clientSummarized } = req.body;
+        const { uuid, complaint, complaint_proof, issue_category, title, location, latitude, longitude, departmentId: explicitDepartmentId, areaId: explicitAreaId, summarized_complaint: clientSummarized } = req.body;
         try {
+            // complaint_proof must be a URL (e.g., the `publicUrl` returned by POST /uploads/presign).
+            // Prevent accidentally persisting local device paths like /data/user/0/... into MongoDB.
+            if (
+                complaint_proof != null &&
+                String(complaint_proof).trim() !== '' &&
+                !/^https?:\/\//i.test(String(complaint_proof).trim())
+            ) {
+                return res.status(400).json({
+                    message:
+                        'Invalid complaint_proof. Upload the file to S3 using POST /uploads/presign + PUT to uploadUrl, then send the returned publicUrl as complaint_proof.',
+                });
+            }
+
             let mycomplaint = new Complaint()
             let user = await User.findOne({ uuid })
             console.log("title"+title)
@@ -279,6 +299,8 @@ class ComplaintController {
 
             // Save complaint
             mycomplaint.complaint = complaint_to_be_added;
+            mycomplaint.complaintOriginal = complaint_to_be_added;
+            mycomplaint.originalLanguage = normalizePreferredLang(req.body?.originalLanguage || req.body?.lang);
             mycomplaint.complaint_proof = complaint_proof;
             mycomplaint.issue_category = issue_category;
             // Reference the user who raised the complaint
@@ -286,6 +308,30 @@ class ComplaintController {
             mycomplaint.complaint_id = complaint_id;
             mycomplaint.title = title;
             mycomplaint.location = location;
+
+            // Store coordinates in location itself (single source of truth).
+            try {
+                const lat = latitude !== undefined ? Number(latitude) : Number.NaN;
+                const lng = longitude !== undefined ? Number(longitude) : Number.NaN;
+
+                const isValid = (a: number, b: number) =>
+                    Number.isFinite(a) && Number.isFinite(b) && a >= -90 && a <= 90 && b >= -180 && b <= 180;
+
+                if (isValid(lat, lng)) {
+                    mycomplaint.location = `Location: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+                } else {
+                    const m = String(location || '').match(/(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)/);
+                    if (m) {
+                        const pLat = Number(m[1]);
+                        const pLng = Number(m[2]);
+                        if (isValid(pLat, pLng)) {
+                            mycomplaint.location = `Location: ${pLat.toFixed(6)}, ${pLng.toFixed(6)}`;
+                        }
+                    }
+                }
+            } catch (_) {
+                // Non-critical: coordinate parsing shouldn't block complaint creation
+            }
             mycomplaint.status = "todo"; // Default status
 
             // Attach departmentId + areaId to support officer scoping.
@@ -323,6 +369,7 @@ class ComplaintController {
     async getMyComplaints(req: Request, res: Response) {
         const { user } = req.body;
         const uuid = user.uuid;
+        const lang = normalizePreferredLang(req.query?.lang);
         try {
             let user = await User.findOne({ uuid })
             if (user === null) {
@@ -340,6 +387,8 @@ class ComplaintController {
                             // populate raisedBy for each complaint
                             complaint = await Complaint.findById(complaint._id).populate('raisedBy', 'name uuid email');
                             if (complaint !== null) {
+                                const translatedText = await getTranslatedComplaint(complaint, lang);
+                                (complaint as any).complaint = translatedText;
                                 newlist.push(complaint)
                             }
                         }
@@ -534,6 +583,7 @@ class ComplaintController {
     async getScopedComplaints(req: any, res: Response) {
         try {
             const userId = req.user?.id;
+            const lang = normalizePreferredLang(req.query?.lang);
             if (!userId) {
                 res.status(401).json({ message: 'Not authenticated' });
                 return;
@@ -615,6 +665,11 @@ class ComplaintController {
             const complaints = await Complaint.find(query)
                 .populate('raisedBy', 'username uuid email')
                 .sort({ date: -1 });
+
+            for (const complaint of complaints) {
+                const translatedText = await getTranslatedComplaint(complaint, lang);
+                (complaint as any).complaint = translatedText;
+            }
 
             res.status(200).json({ complaints });
         } catch (e: any) {

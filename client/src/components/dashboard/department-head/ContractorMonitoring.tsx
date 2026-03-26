@@ -5,10 +5,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { listContractors, type AvailabilityStatus, type Contractor } from '@/services/contractorService';
+import { createContractor, listContractors, type AvailabilityStatus, type Contractor } from '@/services/contractorService';
 import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
+import { useToast } from '@/hooks/use-toast';
 
 const toFixed = (n: number, digits = 3) => (Number.isFinite(n) ? n.toFixed(digits) : '-');
 
@@ -33,11 +37,22 @@ export const ContractorMonitoring: React.FC<{
   defaultDepartmentName?: string;
   defaultDepartmentId?: string;
 }> = ({ defaultDepartmentId, defaultDepartmentName }) => {
+  const { toast } = useToast();
   const [status, setStatus] = React.useState<'ALL' | AvailabilityStatus>('ALL');
   const [zone, setZone] = React.useState<string>('ALL');
   const [ward, setWard] = React.useState<string>('ALL');
   const [departmentName, setDepartmentName] = React.useState<string>(defaultDepartmentName || '');
   const [showMap, setShowMap] = React.useState(false);
+  const [createOpen, setCreateOpen] = React.useState(false);
+  const [isCreating, setIsCreating] = React.useState(false);
+  const [form, setForm] = React.useState({
+    name: '',
+    email: '',
+    phoneNumber: '',
+    area: '',
+    zone: '',
+    ward: '',
+  });
 
   // Keep departmentName in sync if parent resolves it later.
   React.useEffect(() => {
@@ -80,9 +95,63 @@ export const ContractorMonitoring: React.FC<{
     () =>
       contractors
         .filter(c => Number.isFinite(c.latitude) && Number.isFinite(c.longitude))
-        .map(c => ({ lat: c.latitude, lng: c.longitude })),
+        .map(c => ({ lat: c.latitude as number, lng: c.longitude as number })),
     [contractors]
   );
+
+  const mappableContractors = React.useMemo(
+    () => contractors.filter(c => Number.isFinite(c.latitude) && Number.isFinite(c.longitude)),
+    [contractors]
+  );
+
+  const handleCreateContractor = async () => {
+    const name = form.name.trim();
+    const email = form.email.trim().toLowerCase();
+    const phoneNumber = form.phoneNumber.trim();
+    const area = form.area.trim();
+
+    if (!name || !email || !phoneNumber || !area) {
+      toast({
+        title: 'Missing fields',
+        description: 'Name, email, phone and area are required.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsCreating(true);
+    try {
+      const result = await createContractor({
+        name,
+        email,
+        phoneNumber,
+        area,
+        zone: form.zone.trim() || undefined,
+        ward: form.ward.trim() || undefined,
+        departmentId: defaultDepartmentId || undefined,
+        departmentName: departmentName || defaultDepartmentName || undefined,
+      });
+
+      toast({
+        title: 'Contractor created',
+        description: result.emailSent
+          ? 'Contractor credentials were emailed successfully.'
+          : 'Contractor created. Email service may be disabled.',
+      });
+
+      setForm({ name: '', email: '', phoneNumber: '', area: '', zone: '', ward: '' });
+      setCreateOpen(false);
+      await query.refetch();
+    } catch (error) {
+      toast({
+        title: 'Create contractor failed',
+        description: error instanceof Error ? error.message : 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -95,6 +164,50 @@ export const ContractorMonitoring: React.FC<{
         </div>
 
         <div className="flex items-center gap-2">
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogTrigger asChild>
+              <Button>Create Contractor</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create Contractor</DialogTitle>
+                <DialogDescription>
+                  A login account will be created and credentials will be sent to the contractor email.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div>
+                  <Label>Name</Label>
+                  <Input value={form.name} onChange={(e) => setForm(prev => ({ ...prev, name: e.target.value }))} />
+                </div>
+                <div>
+                  <Label>Email</Label>
+                  <Input type="email" value={form.email} onChange={(e) => setForm(prev => ({ ...prev, email: e.target.value }))} />
+                </div>
+                <div>
+                  <Label>Phone Number</Label>
+                  <Input value={form.phoneNumber} onChange={(e) => setForm(prev => ({ ...prev, phoneNumber: e.target.value }))} />
+                </div>
+                <div>
+                  <Label>Area</Label>
+                  <Input value={form.area} onChange={(e) => setForm(prev => ({ ...prev, area: e.target.value }))} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Zone (optional)</Label>
+                    <Input value={form.zone} onChange={(e) => setForm(prev => ({ ...prev, zone: e.target.value }))} />
+                  </div>
+                  <div>
+                    <Label>Ward (optional)</Label>
+                    <Input value={form.ward} onChange={(e) => setForm(prev => ({ ...prev, ward: e.target.value }))} />
+                  </div>
+                </div>
+                <Button className="w-full" onClick={handleCreateContractor} disabled={isCreating}>
+                  {isCreating ? 'Creating...' : 'Create & Send Credentials'}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
           <span className="text-sm text-gray-600">Map view</span>
           <Switch checked={showMap} onCheckedChange={setShowMap} />
         </div>
@@ -184,12 +297,12 @@ export const ContractorMonitoring: React.FC<{
             <CardTitle className="text-base">Map</CardTitle>
           </CardHeader>
           <CardContent>
-            {contractors.length === 0 ? (
+            {mappableContractors.length === 0 ? (
               <div className="rounded border bg-white p-6 text-sm text-gray-600">No contractors to display.</div>
             ) : (
               <div className="overflow-hidden rounded border bg-white">
                 <MapContainer
-                  center={[contractors[0].latitude, contractors[0].longitude] as [number, number]}
+                  center={[mappableContractors[0].latitude as number, mappableContractors[0].longitude as number] as [number, number]}
                   zoom={12}
                   style={{ height: 360, width: '100%' }}
                   scrollWheelZoom
@@ -200,13 +313,13 @@ export const ContractorMonitoring: React.FC<{
                   />
                   <FitBounds points={mapPoints} />
 
-                  {contractors.map((c: Contractor) => {
+                  {mappableContractors.map((c: Contractor) => {
                     const color = c.availabilityStatus === 'AVAILABLE' ? '#16a34a' : '#dc2626';
                     const gm = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${c.latitude},${c.longitude}`)}`;
                     return (
                       <CircleMarker
                         key={c._id}
-                        center={[c.latitude, c.longitude] as [number, number]}
+                        center={[c.latitude as number, c.longitude as number] as [number, number]}
                         radius={10}
                         pathOptions={{
                           color,
@@ -263,7 +376,7 @@ export const ContractorMonitoring: React.FC<{
                 <TableRow>
                   <TableHead>Contractor Name</TableHead>
                   <TableHead>Department</TableHead>
-                  <TableHead>Current Location</TableHead>
+                  <TableHead>Area</TableHead>
                   <TableHead>Availability Status</TableHead>
                   <TableHead>Current Assigned Task</TableHead>
                 </TableRow>
@@ -273,9 +386,7 @@ export const ContractorMonitoring: React.FC<{
                   <TableRow key={c._id}>
                     <TableCell className="font-medium">{c.name}</TableCell>
                     <TableCell>{c.departmentName}</TableCell>
-                    <TableCell>
-                      {toFixed(c.latitude)}, {toFixed(c.longitude)}
-                    </TableCell>
+                    <TableCell>{c.area || '-'}</TableCell>
                     <TableCell>{statusBadge(c.availabilityStatus)}</TableCell>
                     <TableCell>{c.currentAssignedTask || '-'}</TableCell>
                   </TableRow>
