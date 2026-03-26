@@ -57,8 +57,19 @@ class AuthController{
                 return;
             }
 
+            const normalizedEmail = String(validUser.email || '').trim().toLowerCase();
+            const contractor = await Contractor.findOne({
+                $or: [
+                    { userId: validUser._id },
+                    { email: normalizedEmail },
+                ],
+            })
+                .select('_id name email departmentId departmentName phoneNumber area latitude longitude availabilityStatus currentAssignedTask zone ward lastLocationUpdateAt')
+                .lean();
+
             const role = String((validUser as any).role || '').trim().toLowerCase();
-            if (role !== 'contractor') {
+            const allowedRoles = new Set(['contractor', 'executor']);
+            if (!allowedRoles.has(role) && !contractor) {
                 res.status(403).json({ message: 'This account is not a contractor account' });
                 return;
             }
@@ -70,15 +81,6 @@ class AuthController{
             }
 
             const token = jwt.sign({ id: validUser._id, role: validUser.role }, process.env.JWT_SECRET || "abcdef");
-
-            const contractor = await Contractor.findOne({
-                $or: [
-                    { userId: validUser._id },
-                    { email: String(validUser.email || '').trim().toLowerCase() },
-                ],
-            })
-                .select('_id name email departmentId departmentName phoneNumber latitude longitude availabilityStatus currentAssignedTask zone ward lastLocationUpdateAt')
-                .lean();
 
             const userObject = validUser.toObject();
             const { password: _hashedPassword, ...rest } = userObject;
