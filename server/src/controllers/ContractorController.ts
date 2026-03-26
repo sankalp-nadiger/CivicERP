@@ -1,7 +1,6 @@
 import { Request, Response } from 'express';
 import { Contractor, Department, User } from '../models/index.js';
 import bcryptjs from 'bcryptjs';
-import { v4 } from 'uuid';
 import { generatePassword, sendCredentialsEmail } from '../utils/emailService.js';
 
 const normalize = (value: unknown) =>
@@ -128,58 +127,6 @@ class ContractorController {
 
     // Backward compatibility for legacy admin accounts with missing governanceLevel.
     return 'LEVEL_1';
-  }
-
-  private async upsertContractorUser(params: {
-    email: string;
-    name: string;
-    phoneNumber: string;
-    governanceType?: string;
-    departmentId?: string;
-  }) {
-    const password = generatePassword('Ctr');
-    const hashedPassword = bcryptjs.hashSync(password, 10);
-
-    const normalizedEmail = String(params.email).trim().toLowerCase();
-    let user = await User.findOne({ email: normalizedEmail });
-
-    if (user) {
-      user.password = hashedPassword;
-      user.role = 'Contractor';
-      if (!user.phoneNo && params.phoneNumber) user.phoneNo = params.phoneNumber;
-      if (params.governanceType) {
-        const gt = String(params.governanceType).trim().toUpperCase();
-        if (gt === 'CITY' || gt === 'PANCHAYAT') {
-          user.governanceType = gt as 'CITY' | 'PANCHAYAT';
-        }
-      }
-      if (params.departmentId) user.departmentId = params.departmentId;
-      await user.save();
-    } else {
-      const usernameBase = String(params.name || 'contractor')
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '_')
-        .replace(/^_+|_+$/g, '');
-      user = new User({
-        username: `${usernameBase || 'contractor'}_${Date.now()}`,
-        email: normalizedEmail,
-        password: hashedPassword,
-        uuid: v4(),
-        phoneNo: params.phoneNumber || '0000000000',
-        role: 'Contractor',
-        governanceType:
-          String(params.governanceType || '').trim().toUpperCase() === 'CITY'
-            ? 'CITY'
-            : String(params.governanceType || '').trim().toUpperCase() === 'PANCHAYAT'
-            ? 'PANCHAYAT'
-            : undefined,
-        departmentId: params.departmentId || undefined,
-        previous_complaints: [],
-      });
-      await user.save();
-    }
-
-    return { user, password };
   }
 
   // GET /contractors
@@ -356,10 +303,13 @@ class ContractorController {
       }
 
       let contractor;
+      let createdPassword: string | undefined;
       if (isUpdate) {
         contractor = await Contractor.findByIdAndUpdate(id, update, { new: true, upsert: true });
       } else {
-        contractor = await Contractor.create(update);
+        createdPassword = generatePassword('Ctr');
+        const hashedPassword = bcryptjs.hashSync(createdPassword, 10);
+        contractor = await Contractor.create({ ...update, password: hashedPassword });
       }
 
       let emailSent = false;
@@ -369,24 +319,11 @@ class ContractorController {
         const loginEmail = String(normalizedEmail || (contractor as any).email || '').trim().toLowerCase();
 
         if (!isUpdate) {
-          const departmentIdForUser = (contractor as any)?.departmentId
-            ? String((contractor as any).departmentId)
-            : undefined;
-          const { user, password } = await this.upsertContractorUser({
-            email: loginEmail,
-            name: String((contractor as any).name || name),
-            phoneNumber: String((contractor as any).phoneNumber || phoneNumber),
-            governanceType: String((requester as any).governanceType || ''),
-            departmentId: departmentIdForUser,
-          });
-
-          if (!(contractor as any).userId || String((contractor as any).userId) !== String((user as any)._id)) {
-            (contractor as any).userId = (user as any)._id;
-          }
           if (!(contractor as any).email) {
             (contractor as any).email = loginEmail;
+            await (contractor as any).save();
           }
-          await (contractor as any).save();
+          const password = createdPassword || generatePassword('Ctr');
 
           emailSent = await sendCredentialsEmail({
             email: loginEmail,

@@ -682,33 +682,47 @@ class ComplaintController {
     // GET /complaints/assigned/me
     async getAssignedComplaintsForContractor(req: any, res: Response) {
         try {
-            const userId = req.user?.id;
+            const tokenId = req.user?.id;
+            const tokenRole = String(req.user?.role || '').trim().toLowerCase();
             const lang = normalizePreferredLang(req.query?.lang);
-            if (!userId) {
+            if (!tokenId) {
                 res.status(401).json({ message: 'Not authenticated' });
                 return;
             }
 
-            const user = await User.findById(userId).select('_id email role').lean();
-            if (!user) {
-                res.status(401).json({ message: 'User not found' });
-                return;
+            let contractor: any = null;
+
+            // New flow: contractor token carries contractor _id.
+            if (tokenRole === 'contractor' && /^[a-f\d]{24}$/i.test(String(tokenId))) {
+                contractor = await Contractor.findById(String(tokenId))
+                    .select('_id name email')
+                    .lean();
             }
 
-            const userEmail = String((user as any).email || '').trim().toLowerCase();
-            const contractor = await Contractor.findOne({
-                $or: [
-                    { userId: (user as any)._id },
-                    ...(userEmail ? [{ email: userEmail }] : []),
-                ],
-            })
-                .select('_id name email')
-                .lean();
+            // Backward compatibility: older tokens may carry User._id.
+            if (!contractor) {
+                const user = await User.findById(tokenId).select('_id email role').lean();
+                if (user) {
+                    const userEmail = String((user as any).email || '').trim().toLowerCase();
+                    contractor = await Contractor.findOne({
+                        $or: [
+                            { userId: (user as any)._id },
+                            ...(userEmail ? [{ email: userEmail }] : []),
+                        ],
+                    })
+                        .select('_id name email')
+                        .lean();
+                }
+            }
 
             if (!contractor) {
                 res.status(200).json({ complaints: [], message: 'No contractor profile linked to this account.' });
                 return;
             }
+
+            contractor = await Contractor.findById((contractor as any)._id)
+                .select('_id name email')
+                .lean();
 
             const contractorName = String((contractor as any).name || '').trim();
             const query: any = {

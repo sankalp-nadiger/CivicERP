@@ -51,38 +51,29 @@ class AuthController{
         }
 
         try {
-            const validUser = await User.findOne({ email: String(email).trim().toLowerCase() });
-            if (!validUser) {
+            const contractorWithPassword = await Contractor.findOne({
+                email: String(email).trim().toLowerCase(),
+            })
+                .select('+password _id name email userId departmentId departmentName phoneNumber area latitude longitude availabilityStatus currentAssignedTask zone ward lastLocationUpdateAt')
+                .lean();
+
+            if (!contractorWithPassword) {
                 res.status(401).json({ message: 'Invalid email or password' });
                 return;
             }
 
-            const normalizedEmail = String(validUser.email || '').trim().toLowerCase();
-            const contractor = await Contractor.findOne({
-                $or: [
-                    { userId: validUser._id },
-                    { email: normalizedEmail },
-                ],
-            })
-                .select('_id name email departmentId departmentName phoneNumber area latitude longitude availabilityStatus currentAssignedTask zone ward lastLocationUpdateAt')
-                .lean();
-
-            const role = String((validUser as any).role || '').trim().toLowerCase();
-            const allowedRoles = new Set(['contractor', 'executor']);
-            if (!allowedRoles.has(role) && !contractor) {
-                res.status(403).json({ message: 'This account is not a contractor account' });
-                return;
-            }
-
-            const validPassword = bcryptjs.compareSync(String(password), validUser.password);
+            const hashedPassword = String((contractorWithPassword as any).password || '');
+            const validPassword = hashedPassword ? bcryptjs.compareSync(String(password), hashedPassword) : false;
             if (!validPassword) {
                 res.status(401).json({ message: 'Invalid email or password' });
                 return;
             }
 
-            const token = jwt.sign({ id: validUser._id, role: validUser.role }, process.env.JWT_SECRET || "abcdef");
+            const token = jwt.sign({ id: (contractorWithPassword as any)._id, role: 'Contractor' }, process.env.JWT_SECRET || "abcdef");
 
             const expiryDate = new Date(Date.now() + 3600000);
+
+            const { password: _password, ...contractor } = (contractorWithPassword as any) || {};
 
             res
                 .cookie('access_token', token, { httpOnly: true, expires: expiryDate })
@@ -90,14 +81,6 @@ class AuthController{
                 .status(200)
                 .json({
                     token,
-                    user: {
-                        _id: (validUser as any)._id,
-                        username: (validUser as any).username,
-                        email: (validUser as any).email,
-                        role: (validUser as any).role,
-                        governanceType: (validUser as any).governanceType,
-                        departmentId: (validUser as any).departmentId,
-                    },
                     contractor: contractor || null,
                 });
         } catch (error: any) {

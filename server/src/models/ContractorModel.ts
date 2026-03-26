@@ -4,6 +4,7 @@ const ContractorSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
     email: { type: String, required: false, unique: true, sparse: true },
+    password: { type: String, required: false, select: false },
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false },
     departmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Department', required: false },
     departmentName: { type: String, required: true },
