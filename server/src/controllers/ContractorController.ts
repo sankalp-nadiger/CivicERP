@@ -253,6 +253,21 @@ class ContractorController {
         return;
       }
 
+      if (normalizedEmail) {
+        const existingUser = await User.findOne({ email: normalizedEmail }).select('_id role').lean();
+        if (existingUser) {
+          const existingRole = String((existingUser as any).role || '').trim().toLowerCase();
+          // Migration/safety: contractor credentials now live only in Contractor model.
+          // Remove legacy contractor-like User rows so data is not duplicated.
+          if (existingRole === 'contractor' || existingRole === 'executor') {
+            await User.deleteOne({ _id: (existingUser as any)._id });
+          } else {
+            res.status(409).json({ message: 'Email already exists in users collection for a non-contractor account.' });
+            return;
+          }
+        }
+      }
+
       const resolvedStatus = asUpperStatus(availabilityStatus ?? availability_status) || 'AVAILABLE';
 
       if (!name || !phoneNumber || !String(area || '').trim() || (level === 'LEVEL_1' && !departmentName)) {
