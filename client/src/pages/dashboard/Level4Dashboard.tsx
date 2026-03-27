@@ -6,10 +6,15 @@
 
 import React, { useState, useEffect } from "react";
 import { useGovernance } from "@/contexts/GovernanceContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useToast } from "@/hooks/use-toast";
-import { getScopedComplaints, Complaint as ApiComplaint } from "@/services/complaintService";
+import {
+  getAssignedComplaintsForContractor,
+  getScopedComplaints,
+  Complaint as ApiComplaint,
+} from "@/services/complaintService";
 import { ComplaintsTable } from "@/components/dashboard/shared/ComplaintsTable";
 import { ComplaintsHeatmap } from "@/components/dashboard/shared/ComplaintsHeatmap";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
@@ -33,6 +38,7 @@ import { FileText, AlertCircle, CheckCircle, Clock, MapPin } from "lucide-react"
 export default function Level4Dashboard() {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const { user: authUser } = useAuth();
   const {
     governanceType,
     currentUser,
@@ -53,18 +59,23 @@ export default function Level4Dashboard() {
   const fetchComplaints = async () => {
     setIsLoadingComplaints(true);
     try {
-      const { complaints: fetchedComplaints, message } = await getScopedComplaints();
+      const isContractor = String(authUser?.role || '').toLowerCase() === 'contractor';
+      const { complaints: fetchedComplaints, message } = isContractor
+        ? await getAssignedComplaintsForContractor()
+        : await getScopedComplaints();
       setApiComplaints(fetchedComplaints);
 
       if (message && fetchedComplaints.length === 0) {
         toast({
-          title: 'No scoped complaints',
+          title: isContractor ? 'No assigned complaints' : 'No scoped complaints',
           description: message,
         });
       }
     } catch (error) {
       console.error('Failed to fetch complaints:', error);
-      const message = error instanceof Error ? error.message : 'Failed to fetch complaints from the database';
+      const message = error instanceof Error
+        ? error.message
+        : 'Failed to fetch complaints from the database';
       toast({
         title: 'Error',
         description: message,
@@ -78,7 +89,7 @@ export default function Level4Dashboard() {
   useEffect(() => {
     fetchComplaints();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [authUser?.role]);
 
   const sidebar = React.useMemo(() => {
     const hierarchy = getAreaHierarchy(governanceType);

@@ -33,15 +33,40 @@ export const Login: React.FC = () => {
     // Backend authentication only - no fallback demo mode
     try {
       const API = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      const resp = await fetch(`${API}/auth/signin`, {
+      let resp = await fetch(`${API}/auth/signin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
         credentials: 'include',
       });
 
+      // If normal user signin fails, try contractor signin.
+      let isContractorSignin = false;
+      if (!resp.ok) {
+        const contractorResp = await fetch(`${API}/auth/contractor/signin`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+          credentials: 'include',
+        });
+        if (contractorResp.ok) {
+          resp = contractorResp;
+          isContractorSignin = true;
+        }
+      }
+
       if (resp.ok) {
-        const userData = await resp.json();
+        const raw = await resp.json();
+        const userData = isContractorSignin
+          ? {
+              token: raw?.token,
+              email: raw?.contractor?.email,
+              username: raw?.contractor?.name,
+              name: raw?.contractor?.name,
+              role: 'contractor',
+            }
+          : raw;
+
         // Persist token for API calls (used by complaintService/governanceService)
         if (userData?.token) {
           localStorage.setItem('auth_token', String(userData.token));
@@ -64,7 +89,9 @@ export const Login: React.FC = () => {
         });
 
         // Route based on user role and governance level
-        if (role === 'admin' || role === 'authority') {
+        if (role === 'contractor') {
+          navigate('/dashboard/level4');
+        } else if (role === 'admin' || role === 'authority') {
           // Prefer explicit governanceLevel from backend (e.g. 'LEVEL_2')
           const rawGovLevel = (userData.governanceLevel || '').toString().toUpperCase();
           const directLevelMatch = rawGovLevel.match(/^LEVEL_(\d+)$/);
