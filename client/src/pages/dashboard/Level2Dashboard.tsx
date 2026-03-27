@@ -600,9 +600,9 @@ export default function Level2Dashboard() {
                         ? t('analytics.predict.loading', 'Predicting...')
                         : t('analytics.predict.button', 'Predict Issues')}
                     </Button>
-                    <p className="text-sm text-gray-500">
+                    {/* <p className="text-sm text-gray-500">
                       {t('analytics.predict.note', 'Results are rule-based and for planning support.')}
-                    </p>
+                    </p> */}
                   </div>
 
                   {predictInsights.length === 0 ? (

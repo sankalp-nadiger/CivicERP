@@ -72,13 +72,13 @@ export default function ChatbotWidget() {
   };
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-3">
+    <div className="fixed bottom-4 right-4 z-[1200] flex flex-col items-end gap-3">
       {isOpen ? (
         <div className="w-[92vw] max-w-sm rounded-2xl border border-slate-200 bg-white shadow-2xl">
           <div className="flex items-center justify-between rounded-t-2xl bg-slate-900 px-4 py-3 text-white">
             <div>
               <p className="text-sm font-semibold">CivicERP Assistant</p>
-              <p className="text-xs text-slate-300">RAG + status helper</p>
+              {/* <p className="text-xs text-slate-300">RAG + status helper</p> */}
             </div>
             <div className="flex items-center gap-2">
               <Button

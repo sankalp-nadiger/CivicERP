@@ -130,15 +130,15 @@ export function ComplaintsTable({ complaints, onComplaintUpdate, enableContracto
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
-  const [localComplaints, setLocalComplaints] = useState<Complaint[]>(complaints);
+  const [complaintOverrides, setComplaintOverrides] = useState<Record<string, Complaint>>({});
   const { user } = useAuth();
   const { toast } = useToast();
   const { t } = useTranslation();
   const isContractorRole = String(user?.role || '').toLowerCase() === 'contractor';
 
-  useEffect(() => {
-    setLocalComplaints(complaints);
-  }, [complaints]);
+  const mergedComplaints = React.useMemo(() => {
+    return complaints.map((complaint) => complaintOverrides[complaint.complaint_id] ?? complaint);
+  }, [complaints, complaintOverrides]);
 
   const safeFormatDate = (value: unknown, pattern: string) => {
     try {
@@ -193,7 +193,7 @@ export function ComplaintsTable({ complaints, onComplaintUpdate, enableContracto
     return { label: t('complaintsTable.priority.low', 'Low'), variant: 'outline' as const };
   };
 
-  const filteredComplaints = localComplaints.filter(complaint => {
+  const filteredComplaints = mergedComplaints.filter(complaint => {
     const canonicalStatus = normalizeComplaintStatus(complaint.status);
     const matchesStatus = statusFilter === 'all' || canonicalStatus === statusFilter;
     const matchesSearch = searchQuery === '' || 
@@ -239,9 +239,7 @@ export function ComplaintsTable({ complaints, onComplaintUpdate, enableContracto
         updated = await updateComplaintStatus(complaint.complaint_id, normalizedStatus, comments);
       }
 
-      setLocalComplaints(prev =>
-        prev.map(item => (item.complaint_id === updated.complaint_id ? updated : item))
-      );
+      setComplaintOverrides(prev => ({ ...prev, [updated.complaint_id]: updated }));
       setSelectedComplaint(updated);
       toast({
         title: t('complaintsTable.toast.statusUpdatedTitle', 'Status Updated'),
@@ -377,7 +375,7 @@ export function ComplaintsTable({ complaints, onComplaintUpdate, enableContracto
           {t('complaintsTable.showing', {
             defaultValue: 'Showing {{shown}} of {{total}} complaints',
             shown: filteredComplaints.length,
-            total: localComplaints.length,
+            total: mergedComplaints.length,
           })}
         </div>
 
@@ -405,9 +403,7 @@ export function ComplaintsTable({ complaints, onComplaintUpdate, enableContracto
                   onUpdateStatus={handleUpdateStatus}
                   onAssignContractor={async (complaint, contractorId) => {
                     const updatedComplaint = await assignComplaintToContractor({ complaint_id: complaint.complaint_id, contractorId });
-                    setLocalComplaints(prev =>
-                      prev.map(item => (item.complaint_id === updatedComplaint.complaint_id ? updatedComplaint : item))
-                    );
+                    setComplaintOverrides(prev => ({ ...prev, [updatedComplaint.complaint_id]: updatedComplaint }));
                     setSelectedComplaint(updatedComplaint);
                     onComplaintUpdate?.();
                   }}
@@ -707,7 +703,7 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, i
             >
               {t('complaintsTable.viewProof', 'View Proof Document')}
             </a>
-            <p className="text-xs text-gray-500 break-all">{proofUrl}</p>
+            {/* <p className="text-xs text-gray-500 break-all">{proofUrl}</p> */}
           </div>
         ) : (
           <p className="text-sm text-gray-500 mt-1">
@@ -733,7 +729,7 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, i
             >
               {t('complaintsTable.viewResolutionProof', 'View Resolution Proof')}
             </a>
-            <p className="text-xs text-gray-500 break-all">{resolutionProofUrl}</p>
+            {/* <p className="text-xs text-gray-500 break-all">{resolutionProofUrl}</p> */}
           </div>
         ) : (
           <p className="text-sm text-gray-500 mt-1">
