@@ -36,9 +36,45 @@ import { GoogleMapsEmbed } from '@/components/GoogleMapsEmbed';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
+const COMPLAINT_STATUS_FLOW = [
+  'OPEN',
+  'ASSIGNED',
+  'WORK_STARTED',
+  'IN_PROGRESS',
+  'WORK_COMPLETED',
+  'VERIFIED',
+  'CLOSED',
+] as const;
+
+type ComplaintStatus = (typeof COMPLAINT_STATUS_FLOW)[number];
+
+const normalizeComplaintStatus = (raw: unknown): ComplaintStatus | null => {
+  const text = String(raw ?? '').trim();
+  if (!text) return null;
+
+  const upper = text.toUpperCase();
+  if ((COMPLAINT_STATUS_FLOW as readonly string[]).includes(upper)) {
+    return upper as ComplaintStatus;
+  }
+
+  const lower = text.toLowerCase();
+  if (lower === 'todo' || lower.includes('registered') || lower === 'open') return 'OPEN';
+  if (lower === 'assigned') return 'ASSIGNED';
+  if (lower === 'work_started' || lower === 'work started' || lower === 'started') return 'WORK_STARTED';
+  if (lower === 'in-progress' || lower === 'in progress' || lower === 'in_progress' || lower === 'progress' || lower.includes('investigation')) return 'IN_PROGRESS';
+  if (lower === 'work_completed' || lower === 'work completed' || lower === 'completed' || lower === 'work done') return 'WORK_COMPLETED';
+  if (lower === 'verified') return 'VERIFIED';
+  if (lower === 'closed' || lower === 'resolved') return 'CLOSED';
+
+  return null;
+};
+
 const resolveProofUrl = (rawValue: unknown): string | null => {
   const raw = String(rawValue ?? '').trim();
   if (!raw) return null;
+
+  // Support inline base64 payloads persisted by older clients.
+  if (/^data:image\//i.test(raw)) return raw;
 
   if (/^https?:\/\//i.test(raw)) return raw;
   if (/^\/\//.test(raw)) return `${window.location.protocol}${raw}`;
@@ -46,11 +82,28 @@ const resolveProofUrl = (rawValue: unknown): string | null => {
   // Support legacy values that may be stored as server-relative paths.
   if (raw.startsWith('/')) return `${API_BASE_URL.replace(/\/$/, '')}${raw}`;
 
-  return null;
+  // Support legacy values like "uploads/proofs/file.jpg".
+  return `${API_BASE_URL.replace(/\/$/, '')}/${raw.replace(/^\/+/, '')}`;
 };
 
-const isLikelyImageUrl = (url: string): boolean => {
-  return /(\.png|\.jpe?g|\.webp|\.gif|\.bmp|\.svg|\.heic|\.heif)(\?|#|$)/i.test(url);
+const getProofRawValue = (complaint: Complaint): unknown => {
+  const source = complaint as Complaint & {
+    complaintProof?: unknown;
+    proofUrl?: unknown;
+    proof_url?: unknown;
+    imageUrl?: unknown;
+    image_url?: unknown;
+  };
+
+  return (
+    source.complaint_proof ??
+    source.complaintProof ??
+    source.proofUrl ??
+    source.proof_url ??
+    source.imageUrl ??
+    source.image_url ??
+    null
+  );
 };
 
 interface ComplaintsTableProps {
@@ -83,16 +136,20 @@ export function ComplaintsTable({ complaints, onComplaintUpdate, enableContracto
   };
 
   const getStatusI18nKey = (status: string): string | null => {
-    const normalized = String(status || '').trim().toLowerCase();
+    const normalized = normalizeComplaintStatus(status);
     if (!normalized) return null;
 
-    if (normalized.includes('todo') || normalized.includes('registered')) return 'todo';
-    if (normalized.includes('investigation')) return 'underInvestigation';
-    if (normalized.includes('progress') || normalized.includes('in-progress') || normalized.includes('in progress')) return 'inProgress';
-    if (normalized.includes('completed')) return 'completed';
-    if (normalized.includes('resolved')) return 'resolved';
+    const keyMap: Record<ComplaintStatus, string> = {
+      OPEN: 'open',
+      ASSIGNED: 'assigned',
+      WORK_STARTED: 'workStarted',
+      IN_PROGRESS: 'inProgress',
+      WORK_COMPLETED: 'workCompleted',
+      VERIFIED: 'verified',
+      CLOSED: 'closed',
+    };
 
-    return null;
+    return keyMap[normalized];
   };
 
   const getStatusLabel = (status: string) => {
@@ -102,14 +159,14 @@ export function ComplaintsTable({ complaints, onComplaintUpdate, enableContracto
   };
 
   const getStatusBadgeVariant = (status: string) => {
-    const normalizedStatus = status.toLowerCase();
-    if (normalizedStatus.includes('completed') || normalizedStatus.includes('resolved')) {
+    const normalizedStatus = normalizeComplaintStatus(status);
+    if (normalizedStatus === 'CLOSED') {
       return 'default';
     }
-    if (normalizedStatus.includes('progress') || normalizedStatus.includes('investigation')) {
+    if (normalizedStatus === 'WORK_COMPLETED' || normalizedStatus === 'VERIFIED') {
       return 'secondary';
     }
-    if (normalizedStatus.includes('todo') || normalizedStatus.includes('registered')) {
+    if (normalizedStatus === 'OPEN' || normalizedStatus === 'ASSIGNED' || normalizedStatus === 'WORK_STARTED' || normalizedStatus === 'IN_PROGRESS') {
       return 'outline';
     }
     return 'destructive';
@@ -122,7 +179,8 @@ export function ComplaintsTable({ complaints, onComplaintUpdate, enableContracto
   };
 
   const filteredComplaints = complaints.filter(complaint => {
-    const matchesStatus = statusFilter === 'all' || complaint.status.toLowerCase().includes(statusFilter.toLowerCase());
+    const canonicalStatus = normalizeComplaintStatus(complaint.status);
+    const matchesStatus = statusFilter === 'all' || canonicalStatus === statusFilter;
     const matchesSearch = searchQuery === '' || 
       complaint.complaint.toLowerCase().includes(searchQuery.toLowerCase()) ||
       complaint.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -173,10 +231,13 @@ export function ComplaintsTable({ complaints, onComplaintUpdate, enableContracto
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">{t('complaintsTable.status.all', 'All Status')}</SelectItem>
-                <SelectItem value="todo">{t('complaintsTable.status.todo', 'To Do')}</SelectItem>
-                <SelectItem value="progress">{t('complaintsTable.status.inProgress', 'In Progress')}</SelectItem>
-                <SelectItem value="completed">{t('complaintsTable.status.completed', 'Completed')}</SelectItem>
-                <SelectItem value="resolved">{t('complaintsTable.status.resolved', 'Resolved')}</SelectItem>
+                <SelectItem value="OPEN">{t('complaintsTable.status.open', 'Open')}</SelectItem>
+                <SelectItem value="ASSIGNED">{t('complaintsTable.status.assigned', 'Assigned')}</SelectItem>
+                <SelectItem value="WORK_STARTED">{t('complaintsTable.status.workStarted', 'Work Started')}</SelectItem>
+                <SelectItem value="IN_PROGRESS">{t('complaintsTable.status.inProgress', 'In Progress')}</SelectItem>
+                <SelectItem value="WORK_COMPLETED">{t('complaintsTable.status.workCompleted', 'Work Completed')}</SelectItem>
+                <SelectItem value="VERIFIED">{t('complaintsTable.status.verified', 'Verified')}</SelectItem>
+                <SelectItem value="CLOSED">{t('complaintsTable.status.closed', 'Closed')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -380,8 +441,9 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, i
 
   const issueCategories = Array.isArray(complaint.issue_category) ? complaint.issue_category : [];
   const commentHistory = Array.isArray(complaint.comments) ? complaint.comments : [];
-  const proofUrl = resolveProofUrl(complaint.complaint_proof);
-  const canPreviewImage = Boolean(proofUrl && isLikelyImageUrl(proofUrl) && !proofImageLoadError);
+  const proofRawValue = getProofRawValue(complaint);
+  const proofUrl = resolveProofUrl(proofRawValue);
+  const canPreviewImage = Boolean(proofUrl && !proofImageLoadError);
 
   const safeFormatDate = (value: unknown, pattern: string) => {
     try {
@@ -394,16 +456,20 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, i
   };
 
   const getStatusI18nKey = (status: string): string | null => {
-    const normalized = String(status || '').trim().toLowerCase();
+    const normalized = normalizeComplaintStatus(status);
     if (!normalized) return null;
 
-    if (normalized.includes('todo') || normalized.includes('registered')) return 'todo';
-    if (normalized.includes('investigation')) return 'underInvestigation';
-    if (normalized.includes('progress') || normalized.includes('in-progress') || normalized.includes('in progress')) return 'inProgress';
-    if (normalized.includes('completed')) return 'completed';
-    if (normalized.includes('resolved')) return 'resolved';
+    const keyMap: Record<ComplaintStatus, string> = {
+      OPEN: 'open',
+      ASSIGNED: 'assigned',
+      WORK_STARTED: 'workStarted',
+      IN_PROGRESS: 'inProgress',
+      WORK_COMPLETED: 'workCompleted',
+      VERIFIED: 'verified',
+      CLOSED: 'closed',
+    };
 
-    return null;
+    return keyMap[normalized];
   };
 
   const getStatusLabel = (status: string) => {
@@ -541,39 +607,37 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, i
       )}
 
       {/* Proof */}
-      {complaint.complaint_proof && (
-        <div>
-          <label className="text-sm font-medium text-gray-700">{t('complaintsTable.fields.proof', 'Proof')}</label>
-          {proofUrl ? (
-            <div className="mt-2 space-y-3">
-              {canPreviewImage && (
-                <img
-                  src={proofUrl}
-                  alt={t('complaintsTable.fields.proof', 'Proof')}
-                  className="max-h-72 w-full rounded border object-contain bg-gray-50"
-                  loading="lazy"
-                  onError={() => setProofImageLoadError(true)}
-                />
-              )}
-              <a
-                href={proofUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-blue-600 hover:underline block"
-              >
-                {t('complaintsTable.viewProof', 'View Proof Document')}
-              </a>
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500 mt-1">
-              {t(
-                'complaintsTable.proofInvalid',
-                'Proof link is not a valid URL.'
-              )}
-            </p>
-          )}
-        </div>
-      )}
+      <div>
+        <label className="text-sm font-medium text-gray-700">{t('complaintsTable.fields.proof', 'Proof')}</label>
+        {proofUrl ? (
+          <div className="mt-2 space-y-3">
+            {canPreviewImage && (
+              <img
+                src={proofUrl}
+                alt={t('complaintsTable.fields.proof', 'Proof')}
+                className="max-h-72 w-full rounded border object-contain bg-gray-50"
+                loading="lazy"
+                onError={() => setProofImageLoadError(true)}
+              />
+            )}
+            <a
+              href={proofUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-blue-600 hover:underline block"
+            >
+              {t('complaintsTable.viewProof', 'View Proof Document')}
+            </a>
+            <p className="text-xs text-gray-500 break-all">{proofUrl}</p>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500 mt-1">
+            {proofRawValue
+              ? t('complaintsTable.proofInvalid', 'Proof link is not a valid URL.')
+              : t('complaintsTable.proofMissing', 'No proof photo uploaded by user.')}
+          </p>
+        )}
+      </div>
 
       {/* Comments History */}
       {commentHistory.length > 0 && (
@@ -612,11 +676,13 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, i
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="todo">{t('complaintsTable.status.todo', 'To Do')}</SelectItem>
-                <SelectItem value="in-progress">{t('complaintsTable.status.inProgress', 'In Progress')}</SelectItem>
-                <SelectItem value="Under Investigation">{t('complaintsTable.status.underInvestigation', 'Under Investigation')}</SelectItem>
-                <SelectItem value="completed">{t('complaintsTable.status.completed', 'Completed')}</SelectItem>
-                <SelectItem value="resolved">{t('complaintsTable.status.resolved', 'Resolved')}</SelectItem>
+                <SelectItem value="OPEN">{t('complaintsTable.status.open', 'Open')}</SelectItem>
+                <SelectItem value="ASSIGNED">{t('complaintsTable.status.assigned', 'Assigned')}</SelectItem>
+                <SelectItem value="WORK_STARTED">{t('complaintsTable.status.workStarted', 'Work Started')}</SelectItem>
+                <SelectItem value="IN_PROGRESS">{t('complaintsTable.status.inProgress', 'In Progress')}</SelectItem>
+                <SelectItem value="WORK_COMPLETED">{t('complaintsTable.status.workCompleted', 'Work Completed')}</SelectItem>
+                <SelectItem value="VERIFIED">{t('complaintsTable.status.verified', 'Verified')}</SelectItem>
+                <SelectItem value="CLOSED">{t('complaintsTable.status.closed', 'Closed')}</SelectItem>
               </SelectContent>
             </Select>
           </div>

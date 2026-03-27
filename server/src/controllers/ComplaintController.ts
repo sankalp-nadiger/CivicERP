@@ -6,6 +6,10 @@ import client from "../utils/RedisSetup.js";
 import axios from "axios";
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getTranslatedComplaint } from '../services/translationService.js';
+import {
+    canTransitionComplaintStatus,
+    normalizeComplaintStatus,
+} from '../utils/complaintStatus.js';
 
 const normalize = (value: unknown): string =>
     String(value ?? '')
@@ -59,6 +63,43 @@ const buildKeywordRegex = (value: unknown): RegExp | undefined => {
 };
 
 class ComplaintController {
+    private async resolveAuthenticatedContractor(tokenId: unknown, tokenRoleRaw: unknown) {
+        const rawId = String(tokenId || '').trim();
+        const tokenRole = String(tokenRoleRaw || '').trim().toLowerCase();
+        if (!rawId) return null;
+
+        let contractor: any = null;
+
+        // New flow: contractor token carries contractor _id.
+        if (tokenRole === 'contractor' && /^[a-f\d]{24}$/i.test(rawId)) {
+            contractor = await Contractor.findById(rawId)
+                .select('_id name email')
+                .lean();
+        }
+
+        // Backward compatibility: older tokens may carry User._id.
+        if (!contractor) {
+            const user = await User.findById(rawId).select('_id email role').lean();
+            if (user) {
+                const userEmail = String((user as any).email || '').trim().toLowerCase();
+                contractor = await Contractor.findOne({
+                    $or: [
+                        { userId: (user as any)._id },
+                        ...(userEmail ? [{ email: userEmail }] : []),
+                    ],
+                })
+                    .select('_id name email')
+                    .lean();
+            }
+        }
+
+        if (!contractor) return null;
+
+        return Contractor.findById((contractor as any)._id)
+            .select('_id name email')
+            .lean();
+    }
+
     private async tryResolveDepartmentId(issueCategories: unknown): Promise<any | undefined> {
         const categories = Array.isArray(issueCategories) ? issueCategories : [];
         const categoryNeedles = categories.map(c => normalize(c)).filter(Boolean);
@@ -332,7 +373,7 @@ class ComplaintController {
             } catch (_) {
                 // Non-critical: coordinate parsing shouldn't block complaint creation
             }
-            mycomplaint.status = "todo"; // Default status
+            mycomplaint.status = "OPEN"; // Default status
 
             // Attach departmentId + areaId to support officer scoping.
             // Prefer explicit ids provided by client (if valid Mongo ObjectIds), otherwise fall back to inference.
@@ -554,12 +595,14 @@ class ComplaintController {
             let todos = 0;
     
             for (let j = 0; j < newlist.length; j++) {
-                if (newlist[j].status === "completed") {
+                const status = normalizeComplaintStatus((newlist[j] as any).status);
+                if (status === 'CLOSED') {
                     completed++;
-                } else if (newlist[j].status === "Under Investigation" || newlist[j].status === "in-progress") {
-                    inProgress++;
-                } else if (newlist[j].status === "todo") {
+                } else if (status === 'OPEN') {
                     todos++;
+                } else {
+                    // ASSIGNED -> VERIFIED are active/in-progress states.
+                    inProgress++;
                 }
             }
     
@@ -690,39 +733,12 @@ class ComplaintController {
                 return;
             }
 
-            let contractor: any = null;
-
-            // New flow: contractor token carries contractor _id.
-            if (tokenRole === 'contractor' && /^[a-f\d]{24}$/i.test(String(tokenId))) {
-                contractor = await Contractor.findById(String(tokenId))
-                    .select('_id name email')
-                    .lean();
-            }
-
-            // Backward compatibility: older tokens may carry User._id.
-            if (!contractor) {
-                const user = await User.findById(tokenId).select('_id email role').lean();
-                if (user) {
-                    const userEmail = String((user as any).email || '').trim().toLowerCase();
-                    contractor = await Contractor.findOne({
-                        $or: [
-                            { userId: (user as any)._id },
-                            ...(userEmail ? [{ email: userEmail }] : []),
-                        ],
-                    })
-                        .select('_id name email')
-                        .lean();
-                }
-            }
+            let contractor: any = await this.resolveAuthenticatedContractor(tokenId, tokenRole);
 
             if (!contractor) {
                 res.status(200).json({ complaints: [], message: 'No contractor profile linked to this account.' });
                 return;
             }
-
-            contractor = await Contractor.findById((contractor as any)._id)
-                .select('_id name email')
-                .lean();
 
             const contractorName = String((contractor as any).name || '').trim();
             const query: any = {
@@ -745,6 +761,105 @@ class ComplaintController {
         } catch (e: any) {
             console.error('getAssignedComplaintsForContractor error:', e);
             res.status(500).json({ message: e?.message || 'Internal server error' });
+        }
+    }
+
+    // Contractor workflow update for assigned complaints.
+    // PUT /complaints/assigned/status
+    // Body: { complaint_id: string, status: 'WORK_STARTED' | 'IN_PROGRESS' | 'WORK_COMPLETED', comments?: string }
+    async updateAssignedComplaintStatusForContractor(req: any, res: Response) {
+        try {
+            const tokenId = req.user?.id;
+            const tokenRole = req.user?.role;
+            if (!tokenId) {
+                res.status(401).json({ message: 'Not authenticated' });
+                return;
+            }
+
+            const contractor = await this.resolveAuthenticatedContractor(tokenId, tokenRole);
+            if (!contractor) {
+                res.status(403).json({ message: 'No contractor profile linked to this account.' });
+                return;
+            }
+
+            const { complaint_id, status, comments } = req.body || {};
+            const complaintId = String(complaint_id || '').trim();
+            const requestedStatus = normalizeComplaintStatus(status);
+
+            if (!complaintId) {
+                res.status(400).json({ message: 'complaint_id is required' });
+                return;
+            }
+
+            if (!requestedStatus) {
+                res.status(400).json({ message: 'status is required' });
+                return;
+            }
+
+            const contractorAllowedStatuses = new Set(['WORK_STARTED', 'IN_PROGRESS', 'WORK_COMPLETED']);
+            if (!contractorAllowedStatuses.has(requestedStatus)) {
+                res.status(403).json({
+                    message: 'Contractor can only update to WORK_STARTED, IN_PROGRESS, or WORK_COMPLETED.',
+                });
+                return;
+            }
+
+            const complaint = await Complaint.findOne({ complaint_id: complaintId });
+            if (!complaint) {
+                res.status(404).json({ message: 'Complaint not found' });
+                return;
+            }
+
+            const assignedId = String((complaint as any).assignedContractorId || '').trim();
+            const assignedName = String((complaint as any).assignedContractorName || '').trim();
+            const contractorId = String((contractor as any)._id || '').trim();
+            const contractorName = String((contractor as any).name || '').trim();
+
+            const isAssignedToThisContractor =
+                (assignedId && assignedId === contractorId) ||
+                (assignedName && contractorName && assignedName.toLowerCase() === contractorName.toLowerCase());
+
+            if (!isAssignedToThisContractor) {
+                res.status(403).json({ message: 'You can update only complaints assigned to you.' });
+                return;
+            }
+
+            const transition = canTransitionComplaintStatus((complaint as any).status, requestedStatus);
+            if (!transition.ok) {
+                res.status(409).json({ message: transition.reason });
+                return;
+            }
+
+            (complaint as any).status = requestedStatus;
+            (complaint as any).lastupdate = new Date();
+            (complaint as any).comments = Array.isArray((complaint as any).comments) ? (complaint as any).comments : [];
+            (complaint as any).comments.push([
+                requestedStatus,
+                contractorName || String((contractor as any).email || 'Contractor'),
+                new Date().toISOString(),
+                typeof comments === 'string' && comments.trim() ? comments.trim() : `Updated to ${requestedStatus}`,
+            ].join('|'));
+
+            await complaint.save();
+
+            // Free the contractor once field work is completed.
+            if (requestedStatus === 'WORK_COMPLETED') {
+                await Contractor.updateOne(
+                    { _id: contractorId },
+                    {
+                        $set: {
+                            availabilityStatus: 'AVAILABLE',
+                            currentAssignedTask: '',
+                            lastLocationUpdateAt: new Date(),
+                        },
+                    }
+                );
+            }
+
+            res.status(200).json({ message: 'Status updated successfully', complaint });
+        } catch (e: any) {
+            console.error('updateAssignedComplaintStatusForContractor error:', e);
+            res.status(500).json({ message: e?.message || 'Failed to update complaint status' });
         }
     }
 
@@ -794,15 +909,22 @@ class ComplaintController {
                 return;
             }
 
+            const transition = canTransitionComplaintStatus((complaint as any).status, 'ASSIGNED');
+            if (!transition.ok) {
+                res.status(409).json({ message: transition.reason });
+                return;
+            }
+
             // Update complaint assignment fields
             (complaint as any).assignedContractorId = (contractor as any)._id;
             (complaint as any).assignedContractorName = String((contractor as any).name || '').trim();
             (complaint as any).assignedAt = new Date();
             (complaint as any).assignedBy = (requester as any)?._id;
+            (complaint as any).status = 'ASSIGNED';
 
             const actor = (requester as any)?.email || (requester as any)?.username || 'Level2';
             const assignmentComment = [
-                'assigned',
+                'ASSIGNED',
                 actor,
                 new Date().toISOString(),
                 `Assigned to ${(contractor as any).name}`

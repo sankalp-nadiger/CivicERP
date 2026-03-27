@@ -2,6 +2,11 @@ import { Request, Response } from 'express';
 import { Complaint } from "../models/index.js";
 import { User } from "../models/index.js";
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import {
+    canTransitionComplaintStatus,
+    COMPLAINT_STATUS_FLOW,
+    normalizeComplaintStatus,
+} from '../utils/complaintStatus.js';
 
 class AdminController {
     // Get all complaints
@@ -30,24 +35,30 @@ class AdminController {
                 return;
             }
 
-            const normalizeStatus = (raw: string) => {
-                const trimmed = String(raw || '').trim();
-                const lower = trimmed.toLowerCase();
-
-                if (lower === 'todo' || lower.includes('registered')) return 'todo';
-                if (lower === 'in-progress' || lower === 'in progress' || lower === 'progress') return 'in-progress';
-                if (lower.includes('investigation')) return 'Under Investigation';
-                // Canonicalize closed states: the rest of the app treats "resolved" as the closed terminal state.
-                if (lower === 'completed' || lower === 'closed') return 'resolved';
-                if (lower === 'resolved') return 'resolved';
-
-                return trimmed;
-            };
-
-            const nextStatus = normalizeStatus(status);
+            const nextStatus = normalizeComplaintStatus(status);
+            if (!nextStatus) {
+                res.status(400).json({
+                    message: `Invalid status. Allowed values: ${COMPLAINT_STATUS_FLOW.join(', ')}`,
+                });
+                return;
+            }
             let complaintToBeUpdated = await Complaint.findOne({ complaint_id });
             
             if (complaintToBeUpdated != null) {
+                const transition = canTransitionComplaintStatus(complaintToBeUpdated.status, nextStatus);
+                if (!transition.ok) {
+                    res.status(409).json({ message: transition.reason });
+                    return;
+                }
+
+                if (
+                    (nextStatus === 'WORK_STARTED' || nextStatus === 'IN_PROGRESS' || nextStatus === 'WORK_COMPLETED') &&
+                    !(complaintToBeUpdated as any).assignedContractorId
+                ) {
+                    res.status(409).json({ message: 'Assign a contractor before moving to contractor work statuses.' });
+                    return;
+                }
+
                 const commentString = [
                     nextStatus,
                     "Admin",

@@ -72,6 +72,12 @@ export interface ScopedComplaintsResponse {
   message?: string;
 }
 
+export interface ContractorAssignedComplaintsResponse {
+  complaints: Complaint[];
+  contractorId?: string;
+  message?: string;
+}
+
 export interface TranslateTextsResponse {
   translations: Record<string, string>;
 }
@@ -136,6 +142,33 @@ export const getScopedComplaints = async (): Promise<ScopedComplaintsResponse> =
   }
 };
 
+// Fetch complaints assigned to the logged-in contractor account.
+export const getAssignedComplaintsForContractor = async (): Promise<ContractorAssignedComplaintsResponse> => {
+  const response = await fetch(`${API_BASE_URL}/complaints/assigned/me`, {
+    method: 'GET',
+    headers: getAuthHeaders(),
+    credentials: 'include',
+  });
+
+  const raw = await response.text();
+  let parsed: ContractorAssignedComplaintsResponse | null = null;
+  try {
+    parsed = raw ? JSON.parse(raw) : null;
+  } catch {
+    parsed = null;
+  }
+
+  if (!response.ok) {
+    throw new Error(parsed?.message || raw || 'Failed to fetch assigned complaints');
+  }
+
+  return {
+    complaints: parsed?.complaints || [],
+    contractorId: parsed?.contractorId,
+    message: parsed?.message,
+  };
+};
+
 // Get complaint statistics for admin
 export const getAdminComplaintStats = async (): Promise<{ complaints: Complaint[], stats: ComplaintStats }> => {
   try {
@@ -181,6 +214,34 @@ export const updateComplaintStatus = async (
     console.error('Error updating complaint status:', error);
     throw error;
   }
+};
+
+// Contractor-only status update: WORK_STARTED -> IN_PROGRESS -> WORK_COMPLETED
+export const updateAssignedComplaintStatusForContractor = async (
+  complaint_id: string,
+  status: 'WORK_STARTED' | 'IN_PROGRESS' | 'WORK_COMPLETED',
+  comments?: string,
+): Promise<Complaint> => {
+  const response = await fetch(`${API_BASE_URL}/complaints/assigned/status`, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    credentials: 'include',
+    body: JSON.stringify({ complaint_id, status, comments }),
+  });
+
+  const raw = await response.text();
+  let parsed: any = null;
+  try {
+    parsed = raw ? JSON.parse(raw) : null;
+  } catch {
+    parsed = null;
+  }
+
+  if (!response.ok) {
+    throw new Error(parsed?.message || raw || 'Failed to update assigned complaint status');
+  }
+
+  return parsed?.complaint as Complaint;
 };
 
 // Assign complaint to contractor (Level 2)

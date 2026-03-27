@@ -295,6 +295,12 @@
     },
     "status": {
       "all": "All Status",
+      "open": "Open",
+      "assigned": "Assigned",
+      "workStarted": "Work Started",
+      "workCompleted": "Work Completed",
+      "verified": "Verified",
+      "closed": "Closed",
       "todo": "To Do",
       "inProgress": "In Progress",
       "underInvestigation": "Under Investigation",

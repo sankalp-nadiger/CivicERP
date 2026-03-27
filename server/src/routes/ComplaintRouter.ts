@@ -14,6 +14,9 @@ complaintRouter.get('/scoped', verifyToken, ComplaintController.getScopedComplai
 // Contractor-scoped complaints (logged-in contractor)
 complaintRouter.get('/assigned/me', verifyToken, ComplaintController.getAssignedComplaintsForContractor);
 
+// Contractor workflow status update
+complaintRouter.put('/assigned/status', verifyToken, ComplaintController.updateAssignedComplaintStatusForContractor);
+
 // Level 2 workflow: assign a complaint to a contractor
 complaintRouter.put('/assign', verifyToken, ComplaintController.assignComplaintToContractor);
 

@@ -112,12 +112,38 @@ export default function Level3Dashboard() {
   const myComplaints = currentUser.areaId ? getComplaintsByArea(complaints, currentUser.areaId) : [];
   const stats = getComplaintStats(myComplaints);
 
+  const normalizeComplaintStatus = (raw: unknown) => {
+    const text = String(raw ?? '').trim();
+    if (!text) return '';
+    const upper = text.toUpperCase();
+    if ([
+      'OPEN',
+      'ASSIGNED',
+      'WORK_STARTED',
+      'IN_PROGRESS',
+      'WORK_COMPLETED',
+      'VERIFIED',
+      'CLOSED',
+    ].includes(upper)) {
+      return upper;
+    }
+    const lower = text.toLowerCase();
+    if (lower === 'todo' || lower.includes('registered') || lower === 'open') return 'OPEN';
+    if (lower === 'assigned') return 'ASSIGNED';
+    if (lower === 'work_started' || lower === 'work started' || lower === 'started') return 'WORK_STARTED';
+    if (lower === 'in-progress' || lower === 'in progress' || lower === 'in_progress' || lower === 'progress' || lower.includes('investigation')) return 'IN_PROGRESS';
+    if (lower === 'work_completed' || lower === 'work completed' || lower === 'completed' || lower === 'work done') return 'WORK_COMPLETED';
+    if (lower === 'verified') return 'VERIFIED';
+    if (lower === 'closed' || lower === 'resolved') return 'CLOSED';
+    return '';
+  };
+
   // Calculate stats from API complaints
   const apiStats = {
     total: apiComplaints.length,
-    open: apiComplaints.filter(c => c.status.toLowerCase().includes('todo') || c.status.toLowerCase().includes('registered')).length,
-    inProgress: apiComplaints.filter(c => c.status.toLowerCase().includes('progress') || c.status.toLowerCase().includes('investigation')).length,
-    closed: apiComplaints.filter(c => c.status.toLowerCase().includes('completed') || c.status.toLowerCase().includes('resolved')).length,
+    open: apiComplaints.filter(c => normalizeComplaintStatus(c.status) === 'OPEN').length,
+    inProgress: apiComplaints.filter(c => ['ASSIGNED', 'WORK_STARTED', 'IN_PROGRESS', 'WORK_COMPLETED', 'VERIFIED'].includes(normalizeComplaintStatus(c.status))).length,
+    closed: apiComplaints.filter(c => normalizeComplaintStatus(c.status) === 'CLOSED').length,
   };
   const subordinates = getSubordinates(users, currentUser.id);
   const childAreas = currentUser.areaId ? getChildAreas(areas, currentUser.areaId) : [];
