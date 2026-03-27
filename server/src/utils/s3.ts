@@ -14,10 +14,31 @@ const getRequiredEnv = (name: string): string => {
   return value;
 };
 
+const getAwsRegion = (): string => {
+  const region = String(process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || '').trim();
+  if (!region) {
+    throw new Error('AWS region not configured. Set AWS_REGION (or AWS_DEFAULT_REGION) on the backend service.');
+  }
+  return region;
+};
+
+const getAwsCredentialsIfProvided = () => {
+  const accessKeyId = String(process.env.AWS_ACCESS_KEY_ID || '').trim();
+  const secretAccessKey = String(process.env.AWS_SECRET_ACCESS_KEY || '').trim();
+
+  // If either one is missing, let AWS default credential chain handle it.
+  if (!accessKeyId || !secretAccessKey) return undefined;
+
+  return {
+    accessKeyId,
+    secretAccessKey,
+  };
+};
+
 export const getS3Client = (): S3Client => {
-  const region = getRequiredEnv('AWS_REGION');
-  // Credentials are picked up automatically from env/instance roles.
-  return new S3Client({ region });
+  const region = getAwsRegion();
+  const credentials = getAwsCredentialsIfProvided();
+  return new S3Client({ region, credentials });
 };
 
 const sanitizePathSegment = (value: string): string => {
@@ -55,7 +76,7 @@ export const presignComplaintImageUpload = async (params: {
   folder?: string;
   expiresInSeconds?: number;
 }): Promise<PresignResult> => {
-  const region = getRequiredEnv('AWS_REGION');
+  const region = getAwsRegion();
   const bucket = getRequiredEnv('AWS_S3_BUCKET');
   const expiresInSeconds = Math.max(30, Math.min(600, params.expiresInSeconds ?? 60));
 

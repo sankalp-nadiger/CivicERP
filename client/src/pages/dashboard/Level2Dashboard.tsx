@@ -120,10 +120,19 @@ export default function Level2Dashboard() {
     setActiveTab(getActiveTabFromPath());
   }, [getActiveTabFromPath]);
 
+  const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  // Department of current user
+  const myDepartment = departments.find(d => d.id === currentUser?.department);
+  const resolvedDepartmentName = myDepartmentFromApi?.name || myDepartment?.name;
+
   const handlePredictIssues = React.useCallback(async () => {
     setIsPredicting(true);
     try {
-      const insights = await predictIssues();
+      const insights = await predictIssues({
+        departmentName: resolvedDepartmentName || '',
+        windowDays: 7,
+      });
       setPredictInsights(insights);
       if (insights.length === 0) {
         toast({
@@ -152,7 +161,7 @@ export default function Level2Dashboard() {
     } finally {
       setIsPredicting(false);
     }
-  }, [t, toast]);
+  }, [resolvedDepartmentName, t, toast]);
 
   // Guard legacy URLs (previously /zones was used for Zone/Taluk management)
   React.useEffect(() => {
@@ -258,11 +267,6 @@ export default function Level2Dashboard() {
     getLevelDisplayName(governanceType || 'CITY', 'LEVEL_2')
   );
 
-  // Department of current user
-  const myDepartment = departments.find(d => d.id === currentUser?.department);
-
-  const resolvedDepartmentName = myDepartmentFromApi?.name || myDepartment?.name;
-  const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
   const resolvedDepartmentNeedle = resolvedDepartmentName ? normalize(resolvedDepartmentName) : null;
   const resolvedDepartmentId = (myDepartmentFromApi?._id || '').toString().trim();
 

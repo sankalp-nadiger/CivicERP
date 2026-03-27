@@ -21,11 +21,17 @@ Authorization: Bearer <your_jwt_token>
 Generates a presigned S3 **PUT** URL for uploading a complaint photo. The client uploads the file directly to S3, then saves the returned `publicUrl` into `complaint_proof` when creating the complaint.
 
 **Required environment variables (server):**
-- `AWS_REGION`
+- `AWS_REGION` (or `AWS_DEFAULT_REGION`)
 - `AWS_S3_BUCKET`
+
+**Render deployment note (recommended):**
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
 
 **Optional:**
 - `AWS_S3_PUBLIC_BASE_URL` (recommended for CloudFront or custom public base URL)
+
+If AWS region/bucket are missing on the backend service, presign URL creation fails and clients will receive an error from `POST /uploads/presign`.
 
 **Request Body:**
 ```json
