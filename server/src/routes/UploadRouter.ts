@@ -26,7 +26,8 @@ uploadRouter.post('/presign', async (req, res) => {
     return res.status(200).json(result);
   } catch (e: any) {
     const message = e?.message || 'Failed to create presigned URL';
-    return res.status(400).json({ message });
+    const isConfigError = /not configured|AWS region/i.test(String(message));
+    return res.status(isConfigError ? 500 : 400).json({ message });
   }
 });
 

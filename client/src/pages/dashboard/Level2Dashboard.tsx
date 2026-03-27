@@ -122,6 +122,33 @@ export default function Level2Dashboard() {
 
   const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
 
+  const normalizeComplaintStatus = (raw: unknown) => {
+    const text = String(raw ?? '').trim();
+    if (!text) return '';
+    const upper = text.toUpperCase();
+    if ([
+      'OPEN',
+      'ASSIGNED',
+      'WORK_STARTED',
+      'IN_PROGRESS',
+      'WORK_COMPLETED',
+      'VERIFIED',
+      'CLOSED',
+    ].includes(upper)) {
+      return upper;
+    }
+
+    const lower = text.toLowerCase();
+    if (lower === 'todo' || lower.includes('registered') || lower === 'open') return 'OPEN';
+    if (lower === 'assigned') return 'ASSIGNED';
+    if (lower === 'work_started' || lower === 'work started' || lower === 'started') return 'WORK_STARTED';
+    if (lower === 'in-progress' || lower === 'in progress' || lower === 'in_progress' || lower === 'progress' || lower.includes('investigation')) return 'IN_PROGRESS';
+    if (lower === 'work_completed' || lower === 'work completed' || lower === 'completed' || lower === 'work done') return 'WORK_COMPLETED';
+    if (lower === 'verified') return 'VERIFIED';
+    if (lower === 'closed' || lower === 'resolved') return 'CLOSED';
+    return '';
+  };
+
   // Department of current user
   const myDepartment = departments.find(d => d.id === currentUser?.department);
   const resolvedDepartmentName = myDepartmentFromApi?.name || myDepartment?.name;
@@ -333,16 +360,16 @@ export default function Level2Dashboard() {
     : apiComplaints;
 
   const visibleDepartmentComplaints = departmentComplaints.filter(c => {
-    const s = String(c.status || '').toLowerCase();
-    return !s.includes('resolved');
+    const normalizedStatus = normalizeComplaintStatus(c.status);
+    return normalizedStatus !== 'CLOSED';
   });
 
   // Calculate stats from the same list shown in the table (resolved items are hidden)
   const apiStats = {
     total: visibleDepartmentComplaints.length,
-    open: visibleDepartmentComplaints.filter(c => c.status.toLowerCase().includes('todo') || c.status.toLowerCase().includes('registered')).length,
-    inProgress: visibleDepartmentComplaints.filter(c => c.status.toLowerCase().includes('progress') || c.status.toLowerCase().includes('investigation')).length,
-    closed: visibleDepartmentComplaints.filter(c => c.status.toLowerCase().includes('completed') || c.status.toLowerCase().includes('resolved')).length,
+    open: visibleDepartmentComplaints.filter(c => normalizeComplaintStatus(c.status) === 'OPEN').length,
+    inProgress: visibleDepartmentComplaints.filter(c => ['ASSIGNED', 'WORK_STARTED', 'IN_PROGRESS', 'WORK_COMPLETED', 'VERIFIED'].includes(normalizeComplaintStatus(c.status))).length,
+    closed: visibleDepartmentComplaints.filter(c => normalizeComplaintStatus(c.status) === 'CLOSED').length,
   };
   // Keep seeded dummy data in check (optional safety net)
   React.useEffect(() => {

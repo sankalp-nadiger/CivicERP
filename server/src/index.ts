@@ -12,6 +12,12 @@ if (!process.env.LIBRETRANSLATE_URL) {
   console.warn('⚠️  LibreTranslate not configured: set LIBRETRANSLATE_URL in server/.env (e.g., http://localhost:5000)');
 }
 
+const awsRegion = String(process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || '').trim();
+const awsBucket = String(process.env.AWS_S3_BUCKET || '').trim();
+if (!awsRegion || !awsBucket) {
+  console.warn('⚠️  S3 presign may fail: set AWS_REGION (or AWS_DEFAULT_REGION) and AWS_S3_BUCKET on this backend service.');
+}
+
 const app = express();
 
 /* ========================

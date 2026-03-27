@@ -82,6 +82,13 @@ export interface TranslateTextsResponse {
   translations: Record<string, string>;
 }
 
+type PresignUploadResponse = {
+  key: string;
+  uploadUrl: string;
+  publicUrl: string;
+  expiresInSeconds: number;
+};
+
 export const generateComplaintId = (): string => {
   const timestamp = Date.now().toString();
   const random = Math.random().toString(36).substr(2, 5).toUpperCase();
@@ -243,17 +250,76 @@ export const updateComplaintStatus = async (
   }
 };
 
+export const uploadComplaintStatusProofImage = async (params: {
+  file: File;
+  uuid?: string;
+  folder?: string;
+}): Promise<string> => {
+  const file = params.file;
+  const contentType = String(file.type || '').trim();
+  if (!contentType.startsWith('image/')) {
+    throw new Error('Only image files are supported for status proof upload');
+  }
+
+  const presignResponse = await fetch(`${API_BASE_URL}/uploads/presign`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    credentials: 'include',
+    body: JSON.stringify({
+      filename: file.name,
+      contentType,
+      uuid: params.uuid,
+      folder: params.folder || 'complaints/status-proof',
+    }),
+  });
+
+  const presignRaw = await presignResponse.text();
+  let presignParsed: PresignUploadResponse | { message?: string } | null = null;
+  try {
+    presignParsed = presignRaw ? JSON.parse(presignRaw) : null;
+  } catch {
+    presignParsed = null;
+  }
+
+  if (!presignResponse.ok) {
+    throw new Error((presignParsed as any)?.message || presignRaw || 'Failed to create presigned upload URL');
+  }
+
+  const uploadUrl = String((presignParsed as any)?.uploadUrl || '').trim();
+  const publicUrl = String((presignParsed as any)?.publicUrl || '').trim();
+  if (!uploadUrl || !publicUrl) {
+    throw new Error('Invalid presigned upload response');
+  }
+
+  const putResponse = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': contentType,
+    },
+    body: file,
+  });
+
+  if (!putResponse.ok) {
+    throw new Error(`Failed to upload image to storage (HTTP ${putResponse.status})`);
+  }
+
+  return publicUrl;
+};
+
 // Contractor-only status update: WORK_STARTED -> IN_PROGRESS -> WORK_COMPLETED
 export const updateAssignedComplaintStatusForContractor = async (
   complaint_id: string,
-  status: 'WORK_STARTED' | 'IN_PROGRESS' | 'WORK_COMPLETED',
+  status: 'WORK_STARTED' | 'IN_PROGRESS' | 'WORK_COMPLETED' | 'WORK_DONE',
   comments?: string,
+  statusProof?: string,
 ): Promise<Complaint> => {
+  const normalizedStatus = status === 'WORK_DONE' ? 'WORK_COMPLETED' : status;
+
   const response = await fetch(`${API_BASE_URL}/complaints/assigned/status`, {
     method: 'PUT',
     headers: getAuthHeaders(),
     credentials: 'include',
-    body: JSON.stringify({ complaint_id, status, comments }),
+    body: JSON.stringify({ complaint_id, status: normalizedStatus, comments, statusProof }),
   });
 
   const raw = await response.text();

@@ -33,6 +33,7 @@ const LEGACY_TO_CANONICAL: Record<string, ComplaintStatus> = {
   'under investigation': 'IN_PROGRESS',
 
   // Work completed
+  work_done: 'WORK_COMPLETED',
   work_completed: 'WORK_COMPLETED',
   'work completed': 'WORK_COMPLETED',
   completed: 'WORK_COMPLETED',

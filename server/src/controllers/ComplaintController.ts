@@ -777,7 +777,7 @@ class ComplaintController {
 
     // Contractor workflow update for assigned complaints.
     // PUT /complaints/assigned/status
-    // Body: { complaint_id: string, status: 'WORK_STARTED' | 'IN_PROGRESS' | 'WORK_COMPLETED', comments?: string }
+    // Body: { complaint_id: string, status: 'WORK_STARTED' | 'IN_PROGRESS' | 'WORK_COMPLETED' | 'WORK_DONE', comments?: string, statusProof?: string }
     async updateAssignedComplaintStatusForContractor(req: any, res: Response) {
         try {
             const tokenId = req.user?.id;
@@ -793,7 +793,7 @@ class ComplaintController {
                 return;
             }
 
-            const { complaint_id, status, comments } = req.body || {};
+            const { complaint_id, status, comments, statusProof } = req.body || {};
             const complaintId = String(complaint_id || '').trim();
             const requestedStatus = normalizeComplaintStatus(status);
 
@@ -813,6 +813,16 @@ class ComplaintController {
                     message: 'Contractor can only update to WORK_STARTED, IN_PROGRESS, or WORK_COMPLETED.',
                 });
                 return;
+            }
+
+            const proofUrl = String(statusProof || '').trim();
+            if (requestedStatus === 'WORK_COMPLETED') {
+                if (!proofUrl || !/^https?:\/\//i.test(proofUrl)) {
+                    res.status(400).json({
+                        message: 'statusProof image URL is required when marking complaint as WORK_COMPLETED.',
+                    });
+                    return;
+                }
             }
 
             const complaint = await Complaint.findOne({ complaint_id: complaintId });
@@ -843,6 +853,9 @@ class ComplaintController {
 
             (complaint as any).status = requestedStatus;
             (complaint as any).lastupdate = new Date();
+            if (proofUrl) {
+                (complaint as any).statusProof = proofUrl;
+            }
             (complaint as any).comments = Array.isArray((complaint as any).comments) ? (complaint as any).comments : [];
             (complaint as any).comments.push([
                 requestedStatus,

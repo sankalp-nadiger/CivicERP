@@ -1,6 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { Complaint, assignComplaintToContractor, translateComplaintTexts, updateComplaintStatus } from '@/services/complaintService';
+import {
+  Complaint,
+  assignComplaintToContractor,
+  translateComplaintTexts,
+  updateAssignedComplaintStatusForContractor,
+  updateComplaintStatus,
+  uploadComplaintStatusProofImage,
+} from '@/services/complaintService';
 import { listContractors, type Contractor } from '@/services/contractorService';
+import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTranslation } from 'react-i18next';
 import {
@@ -122,8 +130,15 @@ export function ComplaintsTable({ complaints, onComplaintUpdate, enableContracto
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
+  const [localComplaints, setLocalComplaints] = useState<Complaint[]>(complaints);
+  const { user } = useAuth();
   const { toast } = useToast();
   const { t } = useTranslation();
+  const isContractorRole = String(user?.role || '').toLowerCase() === 'contractor';
+
+  useEffect(() => {
+    setLocalComplaints(complaints);
+  }, [complaints]);
 
   const safeFormatDate = (value: unknown, pattern: string) => {
     try {
@@ -178,7 +193,7 @@ export function ComplaintsTable({ complaints, onComplaintUpdate, enableContracto
     return { label: t('complaintsTable.priority.low', 'Low'), variant: 'outline' as const };
   };
 
-  const filteredComplaints = complaints.filter(complaint => {
+  const filteredComplaints = localComplaints.filter(complaint => {
     const canonicalStatus = normalizeComplaintStatus(complaint.status);
     const matchesStatus = statusFilter === 'all' || canonicalStatus === statusFilter;
     const matchesSearch = searchQuery === '' || 
@@ -188,16 +203,51 @@ export function ComplaintsTable({ complaints, onComplaintUpdate, enableContracto
     return matchesStatus && matchesSearch;
   });
 
-  const handleUpdateStatus = async (complaint: Complaint, newStatus: string, comments?: string) => {
+  const handleUpdateStatus = async (
+    complaint: Complaint,
+    newStatus: string,
+    comments?: string,
+    completionProofFile?: File | null,
+  ) => {
     setIsUpdating(true);
     try {
-      await updateComplaintStatus(complaint.complaint_id, newStatus, comments);
+      const normalizedStatus = normalizeComplaintStatus(newStatus) || 'OPEN';
+      let updated: Complaint;
+
+      if (isContractorRole) {
+        let statusProofUrl: string | undefined;
+
+        if (normalizedStatus === 'WORK_COMPLETED') {
+          if (!completionProofFile) {
+            throw new Error(t('complaintsTable.contractor.proofRequired', 'Upload a resolved-work image before marking as Work Completed.'));
+          }
+
+          statusProofUrl = await uploadComplaintStatusProofImage({
+            file: completionProofFile,
+            uuid: complaint.raisedBy?.uuid,
+            folder: 'complaints/status-proof',
+          });
+        }
+
+        updated = await updateAssignedComplaintStatusForContractor(
+          complaint.complaint_id,
+          normalizedStatus,
+          comments,
+          statusProofUrl,
+        );
+      } else {
+        updated = await updateComplaintStatus(complaint.complaint_id, normalizedStatus, comments);
+      }
+
+      setLocalComplaints(prev =>
+        prev.map(item => (item.complaint_id === updated.complaint_id ? updated : item))
+      );
+      setSelectedComplaint(updated);
       toast({
         title: t('complaintsTable.toast.statusUpdatedTitle', 'Status Updated'),
         description: t('complaintsTable.toast.statusUpdatedDesc', 'Complaint status has been updated successfully'),
       });
       onComplaintUpdate?.();
-      setSelectedComplaint(null);
     } catch (error) {
       toast({
         title: t('complaintsTable.toast.updateFailedTitle', 'Update Failed'),
@@ -327,7 +377,7 @@ export function ComplaintsTable({ complaints, onComplaintUpdate, enableContracto
           {t('complaintsTable.showing', {
             defaultValue: 'Showing {{shown}} of {{total}} complaints',
             shown: filteredComplaints.length,
-            total: complaints.length,
+            total: localComplaints.length,
           })}
         </div>
 
@@ -354,10 +404,15 @@ export function ComplaintsTable({ complaints, onComplaintUpdate, enableContracto
                   complaint={selectedComplaint}
                   onUpdateStatus={handleUpdateStatus}
                   onAssignContractor={async (complaint, contractorId) => {
-                    await assignComplaintToContractor({ complaint_id: complaint.complaint_id, contractorId });
+                    const updatedComplaint = await assignComplaintToContractor({ complaint_id: complaint.complaint_id, contractorId });
+                    setLocalComplaints(prev =>
+                      prev.map(item => (item.complaint_id === updatedComplaint.complaint_id ? updatedComplaint : item))
+                    );
+                    setSelectedComplaint(updatedComplaint);
                     onComplaintUpdate?.();
                   }}
                   isUpdating={isUpdating}
+                  isContractorRole={isContractorRole}
                   enableContractorAssignment={enableContractorAssignment === true}
                   assignmentDepartment={assignmentDepartment}
                 />
@@ -372,9 +427,10 @@ export function ComplaintsTable({ complaints, onComplaintUpdate, enableContracto
 
 interface ComplaintDetailsViewProps {
   complaint: Complaint;
-  onUpdateStatus: (complaint: Complaint, status: string, comments?: string) => void;
+  onUpdateStatus: (complaint: Complaint, status: string, comments?: string, completionProofFile?: File | null) => void;
   onAssignContractor: (complaint: Complaint, contractorId: string) => Promise<void>;
   isUpdating: boolean;
+  isContractorRole: boolean;
   enableContractorAssignment: boolean;
   assignmentDepartment?: {
     departmentId?: string;
@@ -382,9 +438,10 @@ interface ComplaintDetailsViewProps {
   };
 }
 
-function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, isUpdating, enableContractorAssignment, assignmentDepartment }: ComplaintDetailsViewProps) {
+function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, isUpdating, isContractorRole, enableContractorAssignment, assignmentDepartment }: ComplaintDetailsViewProps) {
   const [newStatus, setNewStatus] = useState(complaint.status);
   const [comments, setComments] = useState('');
+  const [completionProofFile, setCompletionProofFile] = useState<File | null>(null);
   const [proofImageLoadError, setProofImageLoadError] = useState(false);
   const { t, i18n } = useTranslation();
 
@@ -406,6 +463,7 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, i
   useEffect(() => {
     setNewStatus(complaint.status);
     setComments('');
+    setCompletionProofFile(null);
     setSelectedContractorId('');
     setProofImageLoadError(false);
   }, [complaint._id, complaint.complaint_id, complaint.status]);
@@ -443,6 +501,10 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, i
   const commentHistory = Array.isArray(complaint.comments) ? complaint.comments : [];
   const proofRawValue = getProofRawValue(complaint);
   const proofUrl = resolveProofUrl(proofRawValue);
+  const resolutionProofRaw = (complaint as any)?.statusProof ?? (complaint as any)?.status_proof ?? null;
+  const resolutionProofUrl = resolveProofUrl(resolutionProofRaw);
+  const selectedStatusNormalized = normalizeComplaintStatus(newStatus);
+  const requiresCompletionProof = isContractorRole && selectedStatusNormalized === 'WORK_COMPLETED';
   const canPreviewImage = Boolean(proofUrl && !proofImageLoadError);
 
   const safeFormatDate = (value: unknown, pattern: string) => {
@@ -656,6 +718,30 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, i
         )}
       </div>
 
+      {/* Resolution Proof (Contractor upload when work is completed) */}
+      <div>
+        <label className="text-sm font-medium text-gray-700">
+          {t('complaintsTable.fields.resolutionProof', 'Resolution Proof')}
+        </label>
+        {resolutionProofUrl ? (
+          <div className="mt-2 space-y-2">
+            <a
+              href={resolutionProofUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-blue-600 hover:underline block"
+            >
+              {t('complaintsTable.viewResolutionProof', 'View Resolution Proof')}
+            </a>
+            <p className="text-xs text-gray-500 break-all">{resolutionProofUrl}</p>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500 mt-1">
+            {t('complaintsTable.resolutionProofMissing', 'No resolution proof uploaded yet.')}
+          </p>
+        )}
+      </div>
+
       {/* Comments History */}
       {commentHistory.length > 0 && (
         <div>
@@ -693,16 +779,46 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, i
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="OPEN">{t('complaintsTable.status.open', 'Open')}</SelectItem>
-                <SelectItem value="ASSIGNED">{t('complaintsTable.status.assigned', 'Assigned')}</SelectItem>
-                <SelectItem value="WORK_STARTED">{t('complaintsTable.status.workStarted', 'Work Started')}</SelectItem>
-                <SelectItem value="IN_PROGRESS">{t('complaintsTable.status.inProgress', 'In Progress')}</SelectItem>
-                <SelectItem value="WORK_COMPLETED">{t('complaintsTable.status.workCompleted', 'Work Completed')}</SelectItem>
-                <SelectItem value="VERIFIED">{t('complaintsTable.status.verified', 'Verified')}</SelectItem>
-                <SelectItem value="CLOSED">{t('complaintsTable.status.closed', 'Closed')}</SelectItem>
+                {isContractorRole ? (
+                  <>
+                    <SelectItem value="WORK_STARTED">{t('complaintsTable.status.workStarted', 'Work Started')}</SelectItem>
+                    <SelectItem value="IN_PROGRESS">{t('complaintsTable.status.inProgress', 'In Progress')}</SelectItem>
+                    <SelectItem value="WORK_COMPLETED">{t('complaintsTable.status.workCompleted', 'Work Completed')}</SelectItem>
+                  </>
+                ) : (
+                  <>
+                    <SelectItem value="OPEN">{t('complaintsTable.status.open', 'Open')}</SelectItem>
+                    <SelectItem value="ASSIGNED">{t('complaintsTable.status.assigned', 'Assigned')}</SelectItem>
+                    <SelectItem value="WORK_STARTED">{t('complaintsTable.status.workStarted', 'Work Started')}</SelectItem>
+                    <SelectItem value="IN_PROGRESS">{t('complaintsTable.status.inProgress', 'In Progress')}</SelectItem>
+                    <SelectItem value="WORK_COMPLETED">{t('complaintsTable.status.workCompleted', 'Work Completed')}</SelectItem>
+                    <SelectItem value="VERIFIED">{t('complaintsTable.status.verified', 'Verified')}</SelectItem>
+                    <SelectItem value="CLOSED">{t('complaintsTable.status.closed', 'Closed')}</SelectItem>
+                  </>
+                )}
               </SelectContent>
             </Select>
           </div>
+
+          {requiresCompletionProof && (
+            <div>
+              <label className="text-sm font-medium text-gray-700">
+                {t('complaintsTable.contractor.resolutionImage', 'Resolved Complaint Image')}
+              </label>
+              <Input
+                className="mt-1"
+                type="file"
+                accept="image/*"
+                onChange={(e) => setCompletionProofFile(e.target.files?.[0] || null)}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                {completionProofFile
+                  ? completionProofFile.name
+                  : t('complaintsTable.contractor.resolutionImageHint', 'Upload a final photo before marking work as completed.')}
+              </p>
+            </div>
+          )}
+
           <div>
             <label className="text-sm font-medium text-gray-700">{t('complaintsTable.updateStatus.comments', 'Comments')}</label>
             <Textarea
@@ -714,8 +830,12 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, i
             />
           </div>
           <Button
-            onClick={() => onUpdateStatus(complaint, newStatus, comments)}
-            disabled={isUpdating || newStatus === complaint.status}
+            onClick={() => onUpdateStatus(complaint, newStatus, comments, completionProofFile)}
+            disabled={
+              isUpdating ||
+              newStatus === complaint.status ||
+              (requiresCompletionProof && !completionProofFile)
+            }
             className="w-full"
           >
             {isUpdating ? t('complaintsTable.updateStatus.updating', 'Updating...') : t('complaintsTable.updateStatus.submit', 'Update Status')}
