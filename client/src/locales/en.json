@@ -198,6 +198,73 @@
       "underYouTitle": "{{role}}s Under You",
       "addOfficerTitle": "Add {{role}}"
     },
+    "contractors": {
+      "title": "Contractor Monitoring",
+      "subtitle": "View contractor location, department, and availability status (auto-refreshes every 10s)",
+      "createButton": "Create Contractor",
+      "dialog": {
+        "title": "Create Contractor",
+        "description": "A login account will be created and credentials will be sent to the contractor email.",
+        "fields": {
+          "name": "Name",
+          "email": "Email",
+          "phoneNumber": "Phone Number",
+          "area": "Area",
+          "zone": "Zone (optional)",
+          "ward": "Ward (optional)"
+        },
+        "submitButton": {
+          "creating": "Creating...",
+          "submit": "Create & Send Credentials"
+        }
+      },
+      "mapToggle": "Map view",
+      "filters": {
+        "title": "Filters",
+        "refreshButton": {
+          "refreshing": "Refreshing…",
+          "refresh": "Refresh"
+        },
+        "availability": "Availability",
+        "placeholder": "All",
+        "available": "Available",
+        "busy": "Busy",
+        "department": "Department",
+        "zone": "Zone",
+        "ward": "Ward",
+        "departmentLabel": "Department: "
+      },
+      "map": {
+        "title": "Map",
+        "noContractors": "No contractors to display.",
+        "popup": {
+          "status": "Status: ",
+          "task": "Task: ",
+          "openMaps": "Open in Google Maps"
+        }
+      },
+      "table": {
+        "title": "Contractors",
+        "error": "Failed to load contractors",
+        "loading": "Loading contractors…",
+        "empty": "No contractors found for the selected filters.",
+        "columns": {
+          "name": "Contractor Name",
+          "department": "Department",
+          "area": "Area",
+          "status": "Availability Status",
+          "task": "Current Assigned Task"
+        }
+      },
+      "toast": {
+        "missingFieldsTitle": "Missing fields",
+        "missingFieldsDescription": "Name, email, phone and area are required.",
+        "contractorCreatedTitle": "Contractor created",
+        "contractorCreatedEmailSent": "Contractor credentials were emailed successfully.",
+        "contractorCreatedEmailDisabled": "Contractor created. Email service may be disabled.",
+        "contractorCreationFailedTitle": "Create contractor failed"
+      }
+    },
     "toast": {
       "fetchComplaintsFailed": "Failed to fetch complaints from the database",
       "officerAddedTitle": "Officer Added Successfully!",

@@ -1,5 +1,6 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
@@ -28,9 +29,9 @@ const FitBounds: React.FC<{ points: Array<{ lat: number; lng: number }> }> = ({ 
   return null;
 };
 
-const statusBadge = (status: AvailabilityStatus) => {
-  if (status === 'AVAILABLE') return <Badge className="bg-green-100 text-green-800">Available</Badge>;
-  return <Badge className="bg-red-100 text-red-800">Busy</Badge>;
+const statusBadge = (status: AvailabilityStatus, t: any) => {
+  if (status === 'AVAILABLE') return <Badge className="bg-green-100 text-green-800">{t('level2.contractors.filters.available', 'Available')}</Badge>;
+  return <Badge className="bg-red-100 text-red-800">{t('level2.contractors.filters.busy', 'Busy')}</Badge>;
 };
 
 export const ContractorMonitoring: React.FC<{
@@ -38,6 +39,7 @@ export const ContractorMonitoring: React.FC<{
   defaultDepartmentId?: string;
 }> = ({ defaultDepartmentId, defaultDepartmentName }) => {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [status, setStatus] = React.useState<'ALL' | AvailabilityStatus>('ALL');
   const [zone, setZone] = React.useState<string>('ALL');
   const [ward, setWard] = React.useState<string>('ALL');
@@ -112,8 +114,8 @@ export const ContractorMonitoring: React.FC<{
 
     if (!name || !email || !phoneNumber || !area) {
       toast({
-        title: 'Missing fields',
-        description: 'Name, email, phone and area are required.',
+        title: t('level2.contractors.toast.missingFieldsTitle', 'Missing fields'),
+        description: t('level2.contractors.toast.missingFieldsDescription', 'Name, email, phone and area are required.'),
         variant: 'destructive',
       });
       return;
@@ -133,10 +135,10 @@ export const ContractorMonitoring: React.FC<{
       });
 
       toast({
-        title: 'Contractor created',
+        title: t('level2.contractors.toast.contractorCreatedTitle', 'Contractor created'),
         description: result.emailSent
-          ? 'Contractor credentials were emailed successfully.'
-          : 'Contractor created. Email service may be disabled.',
+          ? t('level2.contractors.toast.contractorCreatedEmailSent', 'Contractor credentials were emailed successfully.')
+          : t('level2.contractors.toast.contractorCreatedEmailDisabled', 'Contractor created. Email service may be disabled.'),
       });
 
       setForm({ name: '', email: '', phoneNumber: '', area: '', zone: '', ward: '' });
@@ -144,8 +146,8 @@ export const ContractorMonitoring: React.FC<{
       await query.refetch();
     } catch (error) {
       toast({
-        title: 'Create contractor failed',
-        description: error instanceof Error ? error.message : 'Please try again.',
+        title: t('level2.contractors.toast.contractorCreationFailedTitle', 'Create contractor failed'),
+        description: error instanceof Error ? error.message : t('common.error', 'Please try again.'),
         variant: 'destructive',
       });
     } finally {
@@ -157,96 +159,96 @@ export const ContractorMonitoring: React.FC<{
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold">Contractor Monitoring</h2>
+          <h2 className="text-2xl font-bold">{t('level2.contractors.title', 'Contractor Monitoring')}</h2>
           <p className="text-sm text-gray-600">
-            View contractor location, department, and availability status (auto-refreshes every 10s)
+            {t('level2.contractors.subtitle', 'View contractor location, department, and availability status (auto-refreshes every 10s)')}
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>
             <DialogTrigger asChild>
-              <Button>Create Contractor</Button>
+              <Button>{t('level2.contractors.createButton', 'Create Contractor')}</Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Create Contractor</DialogTitle>
+                <DialogTitle>{t('level2.contractors.dialog.title', 'Create Contractor')}</DialogTitle>
                 <DialogDescription>
-                  A login account will be created and credentials will be sent to the contractor email.
+                  {t('level2.contractors.dialog.description', 'A login account will be created and credentials will be sent to the contractor email.')}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-3">
                 <div>
-                  <Label>Name</Label>
+                  <Label>{t('level2.contractors.dialog.fields.name', 'Name')}</Label>
                   <Input value={form.name} onChange={(e) => setForm(prev => ({ ...prev, name: e.target.value }))} />
                 </div>
                 <div>
-                  <Label>Email</Label>
+                  <Label>{t('level2.contractors.dialog.fields.email', 'Email')}</Label>
                   <Input type="email" value={form.email} onChange={(e) => setForm(prev => ({ ...prev, email: e.target.value }))} />
                 </div>
                 <div>
-                  <Label>Phone Number</Label>
+                  <Label>{t('level2.contractors.dialog.fields.phoneNumber', 'Phone Number')}</Label>
                   <Input value={form.phoneNumber} onChange={(e) => setForm(prev => ({ ...prev, phoneNumber: e.target.value }))} />
                 </div>
                 <div>
-                  <Label>Area</Label>
+                  <Label>{t('level2.contractors.dialog.fields.area', 'Area')}</Label>
                   <Input value={form.area} onChange={(e) => setForm(prev => ({ ...prev, area: e.target.value }))} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label>Zone (optional)</Label>
+                    <Label>{t('level2.contractors.dialog.fields.zone', 'Zone (optional)')}</Label>
                     <Input value={form.zone} onChange={(e) => setForm(prev => ({ ...prev, zone: e.target.value }))} />
                   </div>
                   <div>
-                    <Label>Ward (optional)</Label>
+                    <Label>{t('level2.contractors.dialog.fields.ward', 'Ward (optional)')}</Label>
                     <Input value={form.ward} onChange={(e) => setForm(prev => ({ ...prev, ward: e.target.value }))} />
                   </div>
                 </div>
                 <Button className="w-full" onClick={handleCreateContractor} disabled={isCreating}>
-                  {isCreating ? 'Creating...' : 'Create & Send Credentials'}
+                  {isCreating ? t('level2.contractors.dialog.submitButton.creating', 'Creating...') : t('level2.contractors.dialog.submitButton.submit', 'Create & Send Credentials')}
                 </Button>
               </div>
             </DialogContent>
           </Dialog>
-          <span className="text-sm text-gray-600">Map view</span>
+          <span className="text-sm text-gray-600">{t('level2.contractors.mapToggle', 'Map view')}</span>
           <Switch checked={showMap} onCheckedChange={setShowMap} />
         </div>
       </div>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">Filters</CardTitle>
+          <CardTitle className="text-base">{t('level2.contractors.filters.title', 'Filters')}</CardTitle>
           <Button variant="outline" onClick={() => query.refetch()} disabled={query.isFetching}>
-            {query.isFetching ? 'Refreshing…' : 'Refresh'}
+            {query.isFetching ? t('level2.contractors.filters.refreshButton.refreshing', 'Refreshing…') : t('level2.contractors.filters.refreshButton.refresh', 'Refresh')}
           </Button>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div className="space-y-1">
-              <div className="text-xs text-gray-600">Availability</div>
+              <div className="text-xs text-gray-600">{t('level2.contractors.filters.availability', 'Availability')}</div>
               <Select value={status} onValueChange={(v) => setStatus(v as any)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="All" />
+                  <SelectValue placeholder={t('level2.contractors.filters.placeholder', 'All')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL">All</SelectItem>
-                  <SelectItem value="AVAILABLE">Available</SelectItem>
-                  <SelectItem value="BUSY">Busy</SelectItem>
+                  <SelectItem value="ALL">{t('level2.contractors.filters.placeholder', 'All')}</SelectItem>
+                  <SelectItem value="AVAILABLE">{t('level2.contractors.filters.available', 'Available')}</SelectItem>
+                  <SelectItem value="BUSY">{t('level2.contractors.filters.busy', 'Busy')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-1">
-              <div className="text-xs text-gray-600">Department</div>
+              <div className="text-xs text-gray-600">{t('level2.contractors.filters.department', 'Department')}</div>
               <Select
                 value={departmentName || 'ALL'}
                 onValueChange={(v) => setDepartmentName(v === 'ALL' ? '' : v)}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="All" />
+                  <SelectValue placeholder={t('level2.contractors.filters.placeholder', 'All')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL">All</SelectItem>
+                  <SelectItem value="ALL">{t('level2.contractors.filters.placeholder', 'All')}</SelectItem>
                   {departments.map(d => (
                     <SelectItem key={d} value={d}>{d}</SelectItem>
                   ))}
@@ -255,13 +257,13 @@ export const ContractorMonitoring: React.FC<{
             </div>
 
             <div className="space-y-1">
-              <div className="text-xs text-gray-600">Zone</div>
+              <div className="text-xs text-gray-600">{t('level2.contractors.filters.zone', 'Zone')}</div>
               <Select value={zone} onValueChange={setZone}>
                 <SelectTrigger>
-                  <SelectValue placeholder="All" />
+                  <SelectValue placeholder={t('level2.contractors.filters.placeholder', 'All')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL">All</SelectItem>
+                  <SelectItem value="ALL">{t('level2.contractors.filters.placeholder', 'All')}</SelectItem>
                   {zones.map(z => (
                     <SelectItem key={z} value={z}>{z}</SelectItem>
                   ))}
@@ -270,13 +272,13 @@ export const ContractorMonitoring: React.FC<{
             </div>
 
             <div className="space-y-1">
-              <div className="text-xs text-gray-600">Ward</div>
+              <div className="text-xs text-gray-600">{t('level2.contractors.filters.ward', 'Ward')}</div>
               <Select value={ward} onValueChange={setWard}>
                 <SelectTrigger>
-                  <SelectValue placeholder="All" />
+                  <SelectValue placeholder={t('level2.contractors.filters.placeholder', 'All')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL">All</SelectItem>
+                  <SelectItem value="ALL">{t('level2.contractors.filters.placeholder', 'All')}</SelectItem>
                   {wards.map(w => (
                     <SelectItem key={w} value={w}>{w}</SelectItem>
                   ))}
@@ -286,7 +288,7 @@ export const ContractorMonitoring: React.FC<{
           </div>
 
           <div className="mt-3 text-xs text-gray-500">
-            Department: <span className="font-medium text-gray-700">{departmentName || '—'}</span>
+            {t('level2.contractors.filters.departmentLabel', 'Department: ')} <span className="font-medium text-gray-700">{departmentName || '—'}</span>
           </div>
         </CardContent>
       </Card>
@@ -294,11 +296,11 @@ export const ContractorMonitoring: React.FC<{
       {showMap && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Map</CardTitle>
+            <CardTitle className="text-base">{t('level2.contractors.map.title', 'Map')}</CardTitle>
           </CardHeader>
           <CardContent>
             {mappableContractors.length === 0 ? (
-              <div className="rounded border bg-white p-6 text-sm text-gray-600">No contractors to display.</div>
+              <div className="rounded border bg-white p-6 text-sm text-gray-600">{t('level2.contractors.map.noContractors', 'No contractors to display.')}</div>
             ) : (
               <div className="overflow-hidden rounded border bg-white">
                 <MapContainer
@@ -333,9 +335,9 @@ export const ContractorMonitoring: React.FC<{
                             <div className="text-sm font-semibold">{c.name}</div>
                             <div className="text-xs text-gray-600">{c.departmentName}</div>
                             <div className="text-xs">{toFixed(c.latitude, 6)}, {toFixed(c.longitude, 6)}</div>
-                            <div className="text-xs">Status: {c.availabilityStatus}</div>
+                            <div className="text-xs">{t('level2.contractors.map.popup.status', 'Status: ')}{c.availabilityStatus}</div>
                             {c.currentAssignedTask ? (
-                              <div className="text-xs">Task: {c.currentAssignedTask}</div>
+                              <div className="text-xs">{t('level2.contractors.map.popup.task', 'Task: ')}{c.currentAssignedTask}</div>
                             ) : null}
                             <a
                               href={gm}
@@ -343,7 +345,7 @@ export const ContractorMonitoring: React.FC<{
                               rel="noopener noreferrer"
                               className="text-xs text-blue-600 hover:underline"
                             >
-                              Open in Google Maps
+                              {t('level2.contractors.map.popup.openMaps', 'Open in Google Maps')}
                             </a>
                           </div>
                         </Popup>
@@ -359,26 +361,26 @@ export const ContractorMonitoring: React.FC<{
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Contractors</CardTitle>
+          <CardTitle className="text-base">{t('level2.contractors.table.title', 'Contractors')}</CardTitle>
         </CardHeader>
         <CardContent>
           {query.isError ? (
             <div className="rounded border bg-white p-6 text-sm text-red-600">
-              {(query.error as Error)?.message || 'Failed to load contractors'}
+              {(query.error as Error)?.message || t('level2.contractors.table.error', 'Failed to load contractors')}
             </div>
           ) : contractors.length === 0 ? (
             <div className="rounded border bg-white p-6 text-sm text-gray-600">
-              {query.isFetching ? 'Loading contractors…' : 'No contractors found for the selected filters.'}
+              {query.isFetching ? t('level2.contractors.table.loading', 'Loading contractors…') : t('level2.contractors.table.empty', 'No contractors found for the selected filters.')}
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Contractor Name</TableHead>
-                  <TableHead>Department</TableHead>
-                  <TableHead>Area</TableHead>
-                  <TableHead>Availability Status</TableHead>
-                  <TableHead>Current Assigned Task</TableHead>
+                  <TableHead>{t('level2.contractors.table.columns.name', 'Contractor Name')}</TableHead>
+                  <TableHead>{t('level2.contractors.table.columns.department', 'Department')}</TableHead>
+                  <TableHead>{t('level2.contractors.table.columns.area', 'Area')}</TableHead>
+                  <TableHead>{t('level2.contractors.table.columns.status', 'Availability Status')}</TableHead>
+                  <TableHead>{t('level2.contractors.table.columns.task', 'Current Assigned Task')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -387,7 +389,7 @@ export const ContractorMonitoring: React.FC<{
                     <TableCell className="font-medium">{c.name}</TableCell>
                     <TableCell>{c.departmentName}</TableCell>
                     <TableCell>{c.area || '-'}</TableCell>
-                    <TableCell>{statusBadge(c.availabilityStatus)}</TableCell>
+                    <TableCell>{statusBadge(c.availabilityStatus, t)}</TableCell>
                     <TableCell>{c.currentAssignedTask || '-'}</TableCell>
                   </TableRow>
                 ))}

@@ -478,13 +478,12 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, i
     return t(`complaintsTable.status.${key}`, status);
   };
 
-  useEffect(() => {
-    const lang = String(i18n.language || 'en').toLowerCase().split('-')[0];
+  // Function to handle translation for any language
+  const performTranslation = React.useCallback((lang: string) => {
     if (lang === 'en') {
       setTranslated(null);
       return;
     }
-    // Only translate for languages we support on the server right now
     if (!['hi', 'kn'].includes(lang)) {
       setTranslated(null);
       return;
@@ -502,30 +501,48 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, i
       },
     })
       .then((translations) => {
-        if (isCancelled) return;
-        setTranslated({
-          title: translations.title,
-          location: translations.location,
-          complaint: translations.complaint,
-          summarized_complaint: translations.summarized_complaint,
-        });
+        if (!isCancelled) {
+          setTranslated({
+            title: translations.title,
+            location: translations.location,
+            complaint: translations.complaint,
+            summarized_complaint: translations.summarized_complaint,
+          });
+        }
       })
       .catch((err) => {
-        if (isCancelled) return;
-        // Keep UI functional (fall back to original text), but log the root cause.
-        // Common causes: 401 (auth), 429 (Gemini quota), 500 (missing key / server error)
-        console.error('Complaint translation failed', err);
-        setTranslated(null);
+        if (!isCancelled) {
+          console.error('Complaint translation failed', err);
+          setTranslated(null);
+        }
       })
       .finally(() => {
-        if (isCancelled) return;
-        setIsTranslating(false);
+        if (!isCancelled) {
+          setIsTranslating(false);
+        }
       });
 
     return () => {
       isCancelled = true;
     };
-  }, [complaint, i18n.language]);
+  }, [complaint.title, complaint.location, complaint.complaint, complaint.summarized_complaint]);
+
+  // Subscribe to language changes for dynamic translation
+  useEffect(() => {
+    const lang = String(i18n.language || 'en').toLowerCase().split('-')[0];
+    performTranslation(lang);
+
+    // Listen for language change events from i18n
+    const handleLanguageChanged = (lng: string) => {
+      const newLang = String(lng || 'en').toLowerCase().split('-')[0];
+      performTranslation(newLang);
+    };
+
+    i18n.on('languageChanged', handleLanguageChanged);
+    return () => {
+      i18n.off('languageChanged', handleLanguageChanged);
+    };
+  }, [i18n, performTranslation]);
 
   return (
     <div className="space-y-6">

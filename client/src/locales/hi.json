@@ -215,6 +215,73 @@
       "underYouTitle": "आपके अंतर्गत {{role}}",
       "addOfficerTitle": "{{role}} जोड़ें"
     },
+    "contractors": {
+      "title": "ठेकेदार निगरानी",
+      "subtitle": "ठेकेदार के स्थान, विभाग और उपलब्धता स्थिति को देखें (हर 10 सेकंड में स्वचालित रूप से रीफ्रेश होता है)",
+      "createButton": "ठेकेदार बनाएं",
+      "dialog": {
+        "title": "ठेकेदार बनाएं",
+        "description": "एक लॉगिन खाता बनाया जाएगा और विवरण ठेकेदार के ईमेल पर भेजे जाएंगे।",
+        "fields": {
+          "name": "नाम",
+          "email": "ईमेल",
+          "phoneNumber": "फोन नंबर",
+          "area": "क्षेत्र",
+          "zone": "ज़ोन (वैकल्पिक)",
+          "ward": "वार्ड (वैकल्पिक)"
+        },
+        "submitButton": {
+          "creating": "बन रहा है...",
+          "submit": "बनाएं और विवरण भेजें"
+        }
+      },
+      "mapToggle": "नक्शा दिखाएं",
+      "filters": {
+        "title": "फ़िल्टर",
+        "refreshButton": {
+          "refreshing": "रीफ्रेश हो रहा है…",
+          "refresh": "रीफ्रेश"
+        },
+        "availability": "उपलब्धता",
+        "placeholder": "सभी",
+        "available": "उपलब्ध",
+        "busy": "व्यस्त",
+        "department": "विभाग",
+        "zone": "ज़ोन",
+        "ward": "वार्ड",
+        "departmentLabel": "विभाग: "
+      },
+      "map": {
+        "title": "नक्शा",
+        "noContractors": "दिखाने के लिए कोई ठेकेदार नहीं।",
+        "popup": {
+          "status": "स्थिति: ",
+          "task": "कार्य: ",
+          "openMaps": "Google Maps में खोलें"
+        }
+      },
+      "table": {
+        "title": "ठेकेदार",
+        "error": "ठेकेदारों को लोड करने में विफल",
+        "loading": "ठेकेदारों को लोड कर रहे हैं…",
+        "empty": "चयनित फ़िल्टर के लिए कोई ठेकेदार नहीं मिला।",
+        "columns": {
+          "name": "ठेकेदार का नाम",
+          "department": "विभाग",
+          "area": "क्षेत्र",
+          "status": "उपलब्धता स्थिति",
+          "task": "वर्तमान असाइन किया गया कार्य"
+        }
+      },
+      "toast": {
+        "missingFieldsTitle": "अनिवार्य फ़ील्ड्स गायब हैं",
+        "missingFieldsDescription": "नाम, ईमेल, फोन और क्षेत्र आवश्यक हैं।",
+        "contractorCreatedTitle": "ठेकेदार बनाया गया",
+        "contractorCreatedEmailSent": "ठेकेदार विवरण सफलतापूर्वक ईमेल किए गए।",
+        "contractorCreatedEmailDisabled": "ठेकेदार बनाया गया। ईमेल सेवा अक्षम हो सकती है।",
+        "contractorCreationFailedTitle": "ठेकेदार बनाने में विफल"
+      }
+    },
     "toast": {
       "fetchComplaintsFailed": "डेटाबेस से शिकायतें लाने में विफल",
       "officerAddedTitle": "अधिकारी सफलतापूर्वक जोड़ा गया!",

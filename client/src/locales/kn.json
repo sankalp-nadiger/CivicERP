@@ -166,6 +166,73 @@
       "underYouTitle": "ನಿಮ್ಮ ಅಡಿಯಲ್ಲಿ {{role}}",
       "addOfficerTitle": "{{role}} ಸೇರಿಸಿ"
     },
+    "contractors": {
+      "title": "ಠೇಕೆದಾರ ಮೇಲ್ವಿವರಣೆ",
+      "subtitle": "ಠೇಕೆದಾರನ ಸ್ಥಾನ, ವಿಭಾಗ ಮತ್ತು ಲಭ್ಯತೆ ಸ್ಥಿತಿ ವೀಕ್ಷಿಸಿ (ಪ್ರತಿ 10 ಸೆಕೆಂಡಿಗೆ ಸ್ವಯಂಚಾಲಿತವಾಗಿ ರಿಫ್ರೆಶ್ ಆಗುತ್ತದೆ)",
+      "createButton": "ಠೇಕೆದಾರ ರಚಿಸಿ",
+      "dialog": {
+        "title": "ಠೇಕೆದಾರ ರಚಿಸಿ",
+        "description": "ಲಾಗಿನ್ ಖಾತೆ ರಚಿಸಲಾಗುವುದು ಮತ್ತು ವಿವರಗಳನ್ನು ಠೇಕೆದಾರನ ಇಮೇಲ್‌ಗೆ ಕಳುಹಿಸಲಾಗುವುದು.",
+        "fields": {
+          "name": "ಹೆಸರು",
+          "email": "ಇಮೇಲ್",
+          "phoneNumber": "ದೂರವಾಣಿ ಸಂಖ್ಯೆ",
+          "area": "ಪ್ರದೇಶ",
+          "zone": "ವಲಯ (ಅಪ್ರಸ್ತುತ)",
+          "ward": "ವಾರ್ಡ್ (ಅಪ್ರಸ್ತುತ)"
+        },
+        "submitButton": {
+          "creating": "ರಚಿಸಲಾಗುತ್ತಿದೆ...",
+          "submit": "ರಚಿಸಿ ಮತ್ತು ವಿವರಗಳನ್ನು ಕಳುಹಿಸಿ"
+        }
+      },
+      "mapToggle": "ನಕ್ಷೆ ವೀಕ್ಷಿಸಿ",
+      "filters": {
+        "title": "ಅರಣೇ",
+        "refreshButton": {
+          "refreshing": "ರಿಫ್ರೆಶ್ ಆಗುತ್ತಿದೆ…",
+          "refresh": "ರಿಫ್ರೆಶ್"
+        },
+        "availability": "ಲಭ್ಯತೆ",
+        "placeholder": "ಎಲ್ಲ",
+        "available": "ಲಭ್ಯ",
+        "busy": "ವ್ಯಸ್ತ",
+        "department": "ವಿಭಾಗ",
+        "zone": "ವಲಯ",
+        "ward": "ವಾರ್ಡ್",
+        "departmentLabel": "ವಿಭಾಗ: "
+      },
+      "map": {
+        "title": "ನಕ್ಷೆ",
+        "noContractors": "ತೋರಿಸಲು ಯಾವುದೇ ಠೇಕೆದಾರ ಇಲ್ಲ.",
+        "popup": {
+          "status": "ಸ್ಥಿತಿ: ",
+          "task": "ಕಾರ್ಯ: ",
+          "openMaps": "Google ನಕ್ಷೆಗಳಲ್ಲಿ ತೆರೆಯಿರಿ"
+        }
+      },
+      "table": {
+        "title": "ಠೇಕೆದಾರರು",
+        "error": "ಠೇಕೆದಾರರನ್ನು ಲೋಡ್ ಮಾಡಲು ವಿಫಲವಾಗಿದೆ",
+        "loading": "ಠೇಕೆದಾರರನ್ನು ಲೋಡ್ ಮಾಡುತ್ತಿದೆ…",
+        "empty": "ಕೇವಲ ಅರಣೆಯ ದೃಷ್ಟಿಕೋನದಿಂದ ಯಾವುದೇ ಠೇಕೆದಾರ ಕಂಡುಬಂದಿಲ್ಲ.",
+        "columns": {
+          "name": "ಠೇಕೆದಾರನ ಹೆಸರು",
+          "department": "ವಿಭಾಗ",
+          "area": "ಪ್ರದೇಶ",
+          "status": "ಲಭ್ಯತೆ ಸ್ಥಿತಿ",
+          "task": "ಪ್ರಸ್ತುತ ನಿಯೋಜಿತ ಕಾರ್ಯ"
+        }
+      },
+      "toast": {
+        "missingFieldsTitle": "ಅರಣೆಯ ಕ್ಷೇತ್ರವು ಕಾಣೆಯಾಗಿದೆ",
+        "missingFieldsDescription": "ಹೆಸರು, ಇಮೇಲ್, ದೂರವಾಣಿ ಮತ್ತು ಪ್ರದೇಶ ಅಗತ್ಯವಾಗಿದೆ.",
+        "contractorCreatedTitle": "ಠೇಕೆದಾರ ರಚಿಸಲಾಗಿದೆ",
+        "contractorCreatedEmailSent": "ಠೇಕೆದಾರನ ವಿವರಗಳನ್ನು ಸಫಲವಾಗಿ ಇಮೇಲ್ ಮಾಡಲಾಗಿದೆ.",
+        "contractorCreatedEmailDisabled": "ಠೇಕೆದಾರ ರಚಿಸಲಾಗಿದೆ. ಇಮೇಲ್ ಸೇವೆ ನಿಷ್ಕ್ರಿಯವಾಗಿರಬಹುದು.",
+        "contractorCreationFailedTitle": "ಠೇಕೆದಾರ ರಚಿಸಲು ವಿಫಲವಾಗಿದೆ"
+      }
+    },
     "toast": {
       "fetchComplaintsFailed": "ಡೇಟಾಬೇಸ್‌ನಿಂದ ದೂರುಗಳನ್ನು ಪಡೆಯಲು ವಿಫಲವಾಗಿದೆ",
       "officerAddedTitle": "ಅಧಿಕಾರಿಯನ್ನು ಯಶಸ್ವಿಯಾಗಿ ಸೇರಿಸಲಾಗಿದೆ!",
