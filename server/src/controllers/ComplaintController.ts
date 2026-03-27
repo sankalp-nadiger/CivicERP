@@ -420,36 +420,86 @@ class ComplaintController {
 
     async getMyComplaints(req: Request, res: Response) {
         const { user } = req.body;
-        const uuid = user.uuid;
+        const uuid = user?.uuid;
         const lang = normalizePreferredLang(req.query?.lang);
+        if (!uuid) {
+            return res.status(400).json({ message: 'user.uuid is required' });
+        }
         try {
-            let user = await User.findOne({ uuid })
-            if (user === null) {
+            const foundUser = await User.findOne({ uuid })
+            if (foundUser === null) {
                 res.status(404).json({ "message": "User Not Found" })
                 return;
             }
-            let complaints = user.previous_complaints;
-            let newlist = []
+
+            // Primary source: Mongo relation on Complaint.raisedBy (resilient across Redis restarts).
+            const byRaisedUser = await Complaint.find({ raisedBy: foundUser._id })
+                .populate('raisedBy', 'name uuid email')
+                .sort({ date: -1 });
+
+            // Legacy fallback: older records looked up via user.previous_complaints + Redis key indirection.
+            const legacyList: any[] = [];
+            const complaints = foundUser.previous_complaints || [];
             for (let i = 0; i < complaints.length; i++) {
                 try {
-                    let x = await client.get(complaints[i]);
-                    if (x !== null) {
-                        let complaint = await Complaint.findOne({ complaint_id: x });
-                            if (complaint !== null) {
-                            // populate raisedBy for each complaint
+                    const legacyKey = String(complaints[i] || '');
+                    if (!legacyKey) continue;
+
+                    // 1) Old path: key in Redis maps to stored complaint_id.
+                    const redisComplaintId = await client.get(legacyKey);
+                    if (redisComplaintId !== null) {
+                        let complaint = await Complaint.findOne({ complaint_id: redisComplaintId });
+                        if (complaint !== null) {
                             complaint = await Complaint.findById(complaint._id).populate('raisedBy', 'name uuid email');
-                            if (complaint !== null) {
-                                const translatedText = await getTranslatedComplaint(complaint, lang);
-                                (complaint as any).complaint = translatedText;
-                                newlist.push(complaint)
-                            }
+                            if (complaint !== null) legacyList.push(complaint)
                         }
+                    }
+
+                    // 2) Compatibility: sometimes previous_complaints already stores complaint_id directly.
+                    let directComplaint = await Complaint.findOne({ complaint_id: legacyKey });
+                    if (directComplaint !== null) {
+                        directComplaint = await Complaint.findById(directComplaint._id).populate('raisedBy', 'name uuid email');
+                        if (directComplaint !== null) legacyList.push(directComplaint)
                     }
                 } catch (e: any) {
                     console.log(e.message)
                 }
             }
-            res.status(200).json({ "complaints": newlist })
+
+            // 3) Extra legacy fallback: very old data used uuid-prefixed complaint_id.
+            let uuidPrefixedList: any[] = [];
+            try {
+                uuidPrefixedList = await Complaint.find({ complaint_id: { $regex: `^${uuid}` } })
+                    .populate('raisedBy', 'name uuid email')
+                    .sort({ date: -1 });
+            } catch (e: any) {
+                console.log(e.message)
+            }
+
+            const merged = new Map<string, any>();
+            for (const complaint of byRaisedUser) {
+                merged.set(String((complaint as any)._id), complaint);
+            }
+            for (const complaint of legacyList) {
+                merged.set(String((complaint as any)._id), complaint);
+            }
+            for (const complaint of uuidPrefixedList) {
+                merged.set(String((complaint as any)._id), complaint);
+            }
+
+            const finalList = Array.from(merged.values());
+            for (const complaint of finalList) {
+                const translatedText = await getTranslatedComplaint(complaint, lang);
+                (complaint as any).complaint = translatedText;
+            }
+
+            finalList.sort((a: any, b: any) => {
+                const aDate = new Date(a?.date || a?.createdAt || 0).getTime();
+                const bDate = new Date(b?.date || b?.createdAt || 0).getTime();
+                return bDate - aDate;
+            });
+
+            res.status(200).json({ "complaints": finalList })
         } catch (e: any) {
             console.log(e.message)
             res.status(500).json({ "message": "Internal server error" })
