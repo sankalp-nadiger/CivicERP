@@ -63,6 +63,17 @@ const buildKeywordRegex = (value: unknown): RegExp | undefined => {
 };
 
 class ComplaintController {
+    constructor() {
+        this.addComplaint = this.addComplaint.bind(this);
+        this.getMyComplaints = this.getMyComplaints.bind(this);
+        this.translateTexts = this.translateTexts.bind(this);
+        this.getComplaintStats = this.getComplaintStats.bind(this);
+        this.getScopedComplaints = this.getScopedComplaints.bind(this);
+        this.getAssignedComplaintsForContractor = this.getAssignedComplaintsForContractor.bind(this);
+        this.updateAssignedComplaintStatusForContractor = this.updateAssignedComplaintStatusForContractor.bind(this);
+        this.assignComplaintToContractor = this.assignComplaintToContractor.bind(this);
+    }
+
     private async resolveAuthenticatedContractor(tokenId: unknown, tokenRoleRaw: unknown) {
         const rawId = String(tokenId || '').trim();
         const tokenRole = String(tokenRoleRaw || '').trim().toLowerCase();

@@ -159,7 +159,34 @@ export const getAssignedComplaintsForContractor = async (): Promise<ContractorAs
   }
 
   if (!response.ok) {
-    throw new Error(parsed?.message || raw || 'Failed to fetch assigned complaints');
+    // Compatibility fallback: older server build may not have /complaints/assigned/me route yet.
+    const looksLikeMissingRoute =
+      response.status === 404 &&
+      String(parsed?.message || raw || '').toLowerCase().includes('route not found');
+
+    if (looksLikeMissingRoute) {
+      const fallback = await fetch(`${API_BASE_URL}/complaints/scoped`, {
+        method: 'GET',
+        headers: getAuthHeaders(),
+        credentials: 'include',
+      });
+      const fallbackRaw = await fallback.text();
+      let fallbackParsed: any = null;
+      try {
+        fallbackParsed = fallbackRaw ? JSON.parse(fallbackRaw) : null;
+      } catch {
+        fallbackParsed = null;
+      }
+      if (fallback.ok) {
+        return {
+          complaints: fallbackParsed?.complaints || [],
+          message: fallbackParsed?.message || 'Using scoped complaints fallback because assigned endpoint is unavailable on server.',
+        };
+      }
+    }
+
+    const message = parsed?.message || raw || 'Failed to fetch assigned complaints';
+    throw new Error(`${message} (HTTP ${response.status})`);
   }
 
   return {

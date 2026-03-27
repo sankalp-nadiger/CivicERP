@@ -33,25 +33,25 @@ export const Login: React.FC = () => {
     // Backend authentication only - no fallback demo mode
     try {
       const API = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      let resp = await fetch(`${API}/auth/signin`, {
+      // Try contractor signin first so contractor accounts always receive contractor token shape.
+      let resp = await fetch(`${API}/auth/contractor/signin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
         credentials: 'include',
       });
 
-      // If normal user signin fails, try contractor signin.
-      let isContractorSignin = false;
+      let isContractorSignin = resp.ok;
       if (!resp.ok) {
-        const contractorResp = await fetch(`${API}/auth/contractor/signin`, {
+        const userResp = await fetch(`${API}/auth/signin`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password }),
           credentials: 'include',
         });
-        if (contractorResp.ok) {
-          resp = contractorResp;
-          isContractorSignin = true;
+        if (userResp.ok) {
+          resp = userResp;
+          isContractorSignin = false;
         }
       }
 
