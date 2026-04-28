@@ -54,6 +54,7 @@ export interface Complaint {
   assignedContractorName?: string;
   assignedAt?: string;
   assignedBy?: string;
+  assignmentHistory?: Array<Record<string, unknown>>;
 }
 
 export interface ComplaintStats {

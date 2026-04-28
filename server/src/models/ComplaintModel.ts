@@ -110,6 +110,10 @@ const ComplaintSchema = new mongoose.Schema({
     required: false,
     default: undefined,
   },
+  assignmentHistory: {
+    type: [mongoose.Schema.Types.Mixed],
+    default: [],
+  },
 });
 
 const Complaint = mongoose.model("Complaint", ComplaintSchema);

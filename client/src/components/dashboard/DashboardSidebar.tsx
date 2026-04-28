@@ -4,8 +4,9 @@
  */
 
 import React from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useGovernance } from "@/contexts/GovernanceContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { getLevelDisplayName } from "@/config/governanceTemplates";
 import { LogOut, Menu } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -35,6 +36,8 @@ interface DashboardSidebarProps {
 
 export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({ routes }) => {
   const { currentUser, governanceType, logout } = useGovernance();
+  const { logout: authLogout } = useAuth();
+  const navigate = useNavigate();
   const location = useLocation();
   const [isMobile, setIsMobile] = React.useState(false);
   const { t, i18n } = useTranslation();
@@ -53,6 +56,12 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({ routes }) =>
   }
 
   const userLevelDisplay = getLevelDisplayName(governanceType, currentUser.level);
+
+  const handleLogout = () => {
+    logout();
+    authLogout();
+    navigate("/login", { replace: true });
+  };
 
   const sidebarContent = (
     <div className="flex flex-col h-full">
@@ -112,7 +121,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({ routes }) =>
           </DropdownMenuContent>
         </DropdownMenu>
         <Button
-          onClick={logout}
+          onClick={handleLogout}
           variant="outline"
           className="w-full justify-start gap-2"
         >

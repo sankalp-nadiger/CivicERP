@@ -47,6 +47,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 const COMPLAINT_STATUS_FLOW = [
   'OPEN',
   'ASSIGNED',
+  'REASSIGN_REQUIRED',
   'WORK_STARTED',
   'IN_PROGRESS',
   'WORK_COMPLETED',
@@ -55,6 +56,8 @@ const COMPLAINT_STATUS_FLOW = [
 ] as const;
 
 type ComplaintStatus = (typeof COMPLAINT_STATUS_FLOW)[number];
+
+const ASSIGNMENT_ACCEPTANCE_SLA_MS = 6 * 60 * 60 * 1000;
 
 const normalizeComplaintStatus = (raw: unknown): ComplaintStatus | null => {
   const text = String(raw ?? '').trim();
@@ -68,6 +71,7 @@ const normalizeComplaintStatus = (raw: unknown): ComplaintStatus | null => {
   const lower = text.toLowerCase();
   if (lower === 'todo' || lower.includes('registered') || lower === 'open') return 'OPEN';
   if (lower === 'assigned') return 'ASSIGNED';
+  if (lower === 'reassign_required' || lower === 'reassign required' || lower === 'not accepted') return 'REASSIGN_REQUIRED';
   if (lower === 'work_started' || lower === 'work started' || lower === 'started') return 'WORK_STARTED';
   if (lower === 'in-progress' || lower === 'in progress' || lower === 'in_progress' || lower === 'progress' || lower.includes('investigation')) return 'IN_PROGRESS';
   if (lower === 'work_completed' || lower === 'work completed' || lower === 'completed' || lower === 'work done') return 'WORK_COMPLETED';
@@ -114,6 +118,38 @@ const getProofRawValue = (complaint: Complaint): unknown => {
   );
 };
 
+const getAssignmentSlaInfo = (complaint: Complaint, nowMs: number) => {
+  const assignedAtValue = complaint.assignedAt ? new Date(complaint.assignedAt).getTime() : Number.NaN;
+  if (!Number.isFinite(assignedAtValue)) {
+    return {
+      hasAssignment: false,
+      deadlineMs: null as number | null,
+      remainingMs: null as number | null,
+      isExpired: false,
+    };
+  }
+
+  const deadlineMs = assignedAtValue + ASSIGNMENT_ACCEPTANCE_SLA_MS;
+  const remainingMs = deadlineMs - nowMs;
+
+  return {
+    hasAssignment: true,
+    deadlineMs,
+    remainingMs,
+    isExpired: remainingMs <= 0,
+  };
+};
+
+const formatCountdown = (remainingMs: number | null) => {
+  if (remainingMs === null) return 'N/A';
+  const positive = Math.max(0, remainingMs);
+  const totalSeconds = Math.floor(positive / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+};
+
 interface ComplaintsTableProps {
   complaints: Complaint[];
   onComplaintUpdate?: () => void;
@@ -131,10 +167,16 @@ export function ComplaintsTable({ complaints, onComplaintUpdate, enableContracto
   const [searchQuery, setSearchQuery] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
   const [complaintOverrides, setComplaintOverrides] = useState<Record<string, Complaint>>({});
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const { user } = useAuth();
   const { toast } = useToast();
   const { t } = useTranslation();
   const isContractorRole = String(user?.role || '').toLowerCase() === 'contractor';
+
+  useEffect(() => {
+    const timerId = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timerId);
+  }, []);
 
   const mergedComplaints = React.useMemo(() => {
     return complaints.map((complaint) => complaintOverrides[complaint.complaint_id] ?? complaint);
@@ -157,6 +199,7 @@ export function ComplaintsTable({ complaints, onComplaintUpdate, enableContracto
     const keyMap: Record<ComplaintStatus, string> = {
       OPEN: 'open',
       ASSIGNED: 'assigned',
+      REASSIGN_REQUIRED: 'reassignRequired',
       WORK_STARTED: 'workStarted',
       IN_PROGRESS: 'inProgress',
       WORK_COMPLETED: 'workCompleted',
@@ -183,6 +226,9 @@ export function ComplaintsTable({ complaints, onComplaintUpdate, enableContracto
     }
     if (normalizedStatus === 'OPEN' || normalizedStatus === 'ASSIGNED' || normalizedStatus === 'WORK_STARTED' || normalizedStatus === 'IN_PROGRESS') {
       return 'outline';
+    }
+    if (normalizedStatus === 'REASSIGN_REQUIRED') {
+      return 'destructive';
     }
     return 'destructive';
   };
@@ -216,8 +262,11 @@ export function ComplaintsTable({ complaints, onComplaintUpdate, enableContracto
 
       if (isContractorRole) {
         let statusProofUrl: string | undefined;
+        const contractorStatus = normalizedStatus === 'WORK_STARTED' || normalizedStatus === 'IN_PROGRESS' || normalizedStatus === 'WORK_COMPLETED'
+          ? normalizedStatus
+          : 'WORK_STARTED';
 
-        if (normalizedStatus === 'WORK_COMPLETED') {
+        if (contractorStatus === 'WORK_COMPLETED') {
           if (!completionProofFile) {
             throw new Error(t('complaintsTable.contractor.proofRequired', 'Upload a resolved-work image before marking as Work Completed.'));
           }
@@ -231,7 +280,7 @@ export function ComplaintsTable({ complaints, onComplaintUpdate, enableContracto
 
         updated = await updateAssignedComplaintStatusForContractor(
           complaint.complaint_id,
-          normalizedStatus,
+          contractorStatus,
           comments,
           statusProofUrl,
         );
@@ -281,6 +330,7 @@ export function ComplaintsTable({ complaints, onComplaintUpdate, enableContracto
                 <SelectItem value="all">{t('complaintsTable.status.all', 'All Status')}</SelectItem>
                 <SelectItem value="OPEN">{t('complaintsTable.status.open', 'Open')}</SelectItem>
                 <SelectItem value="ASSIGNED">{t('complaintsTable.status.assigned', 'Assigned')}</SelectItem>
+                <SelectItem value="REASSIGN_REQUIRED">{t('complaintsTable.status.reassignRequired', 'Not Accepted')}</SelectItem>
                 <SelectItem value="WORK_STARTED">{t('complaintsTable.status.workStarted', 'Work Started')}</SelectItem>
                 <SelectItem value="IN_PROGRESS">{t('complaintsTable.status.inProgress', 'In Progress')}</SelectItem>
                 <SelectItem value="WORK_COMPLETED">{t('complaintsTable.status.workCompleted', 'Work Completed')}</SelectItem>
@@ -300,6 +350,7 @@ export function ComplaintsTable({ complaints, onComplaintUpdate, enableContracto
                 <TableHead>{t('complaintsTable.columns.title', 'Title')}</TableHead>
                 <TableHead>{t('complaintsTable.columns.category', 'Category')}</TableHead>
                 <TableHead>{t('complaintsTable.columns.status', 'Status')}</TableHead>
+                <TableHead>{t('complaintsTable.columns.sla', 'SLA')}</TableHead>
                 <TableHead>{t('complaintsTable.columns.priority', 'Priority')}</TableHead>
                 <TableHead>{t('complaintsTable.columns.date', 'Date')}</TableHead>
                 <TableHead>{t('complaintsTable.columns.actions', 'Actions')}</TableHead>
@@ -308,15 +359,24 @@ export function ComplaintsTable({ complaints, onComplaintUpdate, enableContracto
             <TableBody>
               {filteredComplaints.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-gray-500 py-8">
+                  <TableCell colSpan={8} className="text-center text-gray-500 py-8">
                     {t('complaintsTable.empty', 'No complaints found')}
                   </TableCell>
                 </TableRow>
               ) : (
                 filteredComplaints.map((complaint) => {
                   const priority = getPriorityBadge(complaint.priority_factor);
+                  const assignmentSlaInfo = getAssignmentSlaInfo(complaint, nowMs);
+                  const canonicalStatus = normalizeComplaintStatus(complaint.status);
+                  const shouldShowAssignmentSla = assignmentSlaInfo.hasAssignment && (canonicalStatus === 'ASSIGNED' || canonicalStatus === 'REASSIGN_REQUIRED');
+                  const isAssignmentDelayed = shouldShowAssignmentSla && (assignmentSlaInfo.isExpired || canonicalStatus === 'REASSIGN_REQUIRED');
+                  const slaLabel = shouldShowAssignmentSla
+                    ? (assignmentSlaInfo.isExpired
+                        ? t('complaintsTable.assignmentSla.notAccepted', 'Not Accepted')
+                        : formatCountdown(assignmentSlaInfo.remainingMs))
+                    : t('complaintsTable.na', 'N/A');
                   return (
-                    <TableRow key={complaint._id}>
+                    <TableRow key={complaint._id} className={isAssignmentDelayed ? 'bg-red-50/60' : undefined}>
                       <TableCell className="font-mono text-xs">
                         {complaint.complaint_id.substring(0, 12)}...
                       </TableCell>
@@ -341,6 +401,22 @@ export function ComplaintsTable({ complaints, onComplaintUpdate, enableContracto
                         <Badge variant={getStatusBadgeVariant(complaint.status)}>
                           {getStatusLabel(complaint.status)}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
+                          <Badge variant={shouldShowAssignmentSla && (assignmentSlaInfo.isExpired || canonicalStatus === 'REASSIGN_REQUIRED') ? 'destructive' : 'outline'} className="w-fit bg-white text-gray-700 border-gray-200">
+                            {shouldShowAssignmentSla
+                              ? (assignmentSlaInfo.isExpired || canonicalStatus === 'REASSIGN_REQUIRED'
+                                  ? t('complaintsTable.assignmentSla.notAccepted', 'Not Accepted')
+                                  : t('complaintsTable.assignmentSla.waiting', 'Waiting for Acceptance'))
+                              : t('complaintsTable.na', 'N/A')}
+                          </Badge>
+                          {shouldShowAssignmentSla && (
+                            <span className={`text-xs font-mono ${assignmentSlaInfo.isExpired ? 'text-red-600' : 'text-gray-600'}`}>
+                              {slaLabel}
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Badge variant={priority.variant}>{priority.label}</Badge>
@@ -411,6 +487,7 @@ export function ComplaintsTable({ complaints, onComplaintUpdate, enableContracto
                   isContractorRole={isContractorRole}
                   enableContractorAssignment={enableContractorAssignment === true}
                   assignmentDepartment={assignmentDepartment}
+                  nowMs={nowMs}
                 />
               </>
             )}
@@ -428,13 +505,14 @@ interface ComplaintDetailsViewProps {
   isUpdating: boolean;
   isContractorRole: boolean;
   enableContractorAssignment: boolean;
+  nowMs: number;
   assignmentDepartment?: {
     departmentId?: string;
     departmentName?: string;
   };
 }
 
-function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, isUpdating, isContractorRole, enableContractorAssignment, assignmentDepartment }: ComplaintDetailsViewProps) {
+function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, isUpdating, isContractorRole, enableContractorAssignment, nowMs, assignmentDepartment }: ComplaintDetailsViewProps) {
   const [newStatus, setNewStatus] = useState(complaint.status);
   const [comments, setComments] = useState('');
   const [completionProofFile, setCompletionProofFile] = useState<File | null>(null);
@@ -500,8 +578,11 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, i
   const resolutionProofRaw = (complaint as any)?.statusProof ?? (complaint as any)?.status_proof ?? null;
   const resolutionProofUrl = resolveProofUrl(resolutionProofRaw);
   const selectedStatusNormalized = normalizeComplaintStatus(newStatus);
+  const currentStatusNormalized = normalizeComplaintStatus(complaint.status);
+  const assignmentSlaInfo = getAssignmentSlaInfo(complaint, nowMs);
   const requiresCompletionProof = isContractorRole && selectedStatusNormalized === 'WORK_COMPLETED';
   const canPreviewImage = Boolean(proofUrl && !proofImageLoadError);
+  const isReassignmentRequired = currentStatusNormalized === 'REASSIGN_REQUIRED';
 
   const safeFormatDate = (value: unknown, pattern: string) => {
     try {
@@ -520,6 +601,7 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, i
     const keyMap: Record<ComplaintStatus, string> = {
       OPEN: 'open',
       ASSIGNED: 'assigned',
+      REASSIGN_REQUIRED: 'reassignRequired',
       WORK_STARTED: 'workStarted',
       IN_PROGRESS: 'inProgress',
       WORK_COMPLETED: 'workCompleted',
@@ -590,7 +672,6 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, i
     const lang = String(i18n.language || 'en').toLowerCase().split('-')[0];
     performTranslation(lang);
 
-    // Listen for language change events from i18n
     const handleLanguageChanged = (lng: string) => {
       const newLang = String(lng || 'en').toLowerCase().split('-')[0];
       performTranslation(newLang);
@@ -645,6 +726,45 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, i
         </div>
       )}
 
+      {/* Assignment SLA */}
+      {complaint.assignedAt && (currentStatusNormalized === 'ASSIGNED' || currentStatusNormalized === 'REASSIGN_REQUIRED') && (
+        <div className="rounded border bg-slate-50 p-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <h3 className="font-semibold text-sm">
+              {t('complaintsTable.assignmentSla.title', 'Assignment SLA')}
+            </h3>
+            <Badge variant={assignmentSlaInfo.isExpired || isReassignmentRequired ? 'destructive' : 'outline'}>
+              {assignmentSlaInfo.isExpired || isReassignmentRequired
+                ? t('complaintsTable.assignmentSla.notAccepted', 'Not Accepted')
+                : t('complaintsTable.assignmentSla.waiting', 'Waiting for Acceptance')}
+            </Badge>
+          </div>
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+            <div>
+              <p className="text-gray-500">{t('complaintsTable.assignmentSla.assignedAt', 'Assigned At')}</p>
+              <p className="font-medium">{safeFormatDate(complaint.assignedAt, 'MMM dd, yyyy HH:mm')}</p>
+            </div>
+            <div>
+              <p className="text-gray-500">{t('complaintsTable.assignmentSla.deadline', 'Acceptance Deadline')}</p>
+              <p className="font-medium">
+                {assignmentSlaInfo.deadlineMs ? safeFormatDate(new Date(assignmentSlaInfo.deadlineMs), 'MMM dd, yyyy HH:mm') : t('complaintsTable.na', 'N/A')}
+              </p>
+            </div>
+            <div>
+              <p className="text-gray-500">{t('complaintsTable.assignmentSla.countdown', 'Countdown')}</p>
+              <p className={`font-mono font-medium ${assignmentSlaInfo.isExpired ? 'text-red-600' : 'text-gray-900'}`}>
+                {formatCountdown(assignmentSlaInfo.remainingMs)}
+              </p>
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 mt-3">
+            {assignmentSlaInfo.isExpired || isReassignmentRequired
+              ? t('complaintsTable.assignmentSla.expiredHint', 'This complaint missed the 6-hour acceptance SLA and must be reassigned before contractors can continue.')
+              : t('complaintsTable.assignmentSla.activeHint', 'The contractor must click Start Work within 6 hours to accept the assignment.')}
+          </p>
+        </div>
+      )}
+
       {/* Categories */}
       <div>
         <label className="text-sm font-medium text-gray-700">{t('complaintsTable.fields.categories', 'Categories')}</label>
@@ -666,14 +786,14 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, i
       </div>
 
       {/* Summarized Complaint */}
-      {complaint.summarized_complaint && (
+      {/* {complaint.summarized_complaint && (
         <div>
           <label className="text-sm font-medium text-gray-700">{t('complaintsTable.fields.aiSummary', 'AI Summary')}</label>
           <p className="text-sm mt-2 p-3 bg-blue-50 rounded border border-blue-200">
             {translated?.summarized_complaint || complaint.summarized_complaint}
           </p>
         </div>
-      )}
+      )} */}
 
       {isTranslating && (
         <p className="text-xs text-gray-500">
@@ -767,83 +887,98 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, i
       {/* Update Status Section */}
       <div className="border-t pt-6">
         <h3 className="font-semibold mb-4">{t('complaintsTable.updateStatus.title', 'Update Status')}</h3>
-        <div className="space-y-4">
-          <div>
-            <label className="text-sm font-medium text-gray-700">{t('complaintsTable.updateStatus.newStatus', 'New Status')}</label>
-            <Select value={newStatus} onValueChange={setNewStatus}>
-              <SelectTrigger className="w-full mt-1">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {isContractorRole ? (
-                  <>
-                    <SelectItem value="WORK_STARTED">{t('complaintsTable.status.workStarted', 'Work Started')}</SelectItem>
-                    <SelectItem value="IN_PROGRESS">{t('complaintsTable.status.inProgress', 'In Progress')}</SelectItem>
-                    <SelectItem value="WORK_COMPLETED">{t('complaintsTable.status.workCompleted', 'Work Completed')}</SelectItem>
-                  </>
-                ) : (
-                  <>
-                    <SelectItem value="OPEN">{t('complaintsTable.status.open', 'Open')}</SelectItem>
-                    <SelectItem value="ASSIGNED">{t('complaintsTable.status.assigned', 'Assigned')}</SelectItem>
-                    <SelectItem value="WORK_STARTED">{t('complaintsTable.status.workStarted', 'Work Started')}</SelectItem>
-                    <SelectItem value="IN_PROGRESS">{t('complaintsTable.status.inProgress', 'In Progress')}</SelectItem>
-                    <SelectItem value="WORK_COMPLETED">{t('complaintsTable.status.workCompleted', 'Work Completed')}</SelectItem>
-                    <SelectItem value="VERIFIED">{t('complaintsTable.status.verified', 'Verified')}</SelectItem>
-                    <SelectItem value="CLOSED">{t('complaintsTable.status.closed', 'Closed')}</SelectItem>
-                  </>
-                )}
-              </SelectContent>
-            </Select>
+        {isContractorRole && isReassignmentRequired ? (
+          <div className="rounded border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+            {t('complaintsTable.assignmentSla.contractorBlocked', 'This complaint has expired and cannot be updated until the department head reassigns it.')}
           </div>
-
-          {requiresCompletionProof && (
+        ) : (
+          <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium text-gray-700">
-                {t('complaintsTable.contractor.resolutionImage', 'Resolved Complaint Image')}
-              </label>
-              <Input
-                className="mt-1"
-                type="file"
-                accept="image/*"
-                onChange={(e) => setCompletionProofFile(e.target.files?.[0] || null)}
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                {completionProofFile
-                  ? completionProofFile.name
-                  : t('complaintsTable.contractor.resolutionImageHint', 'Upload a final photo before marking work as completed.')}
-              </p>
+              <label className="text-sm font-medium text-gray-700">{t('complaintsTable.updateStatus.newStatus', 'New Status')}</label>
+              <Select value={newStatus} onValueChange={setNewStatus}>
+                <SelectTrigger className="w-full mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {isContractorRole ? (
+                    <>
+                      <SelectItem value="WORK_STARTED">{t('complaintsTable.status.workStarted', 'Work Started')}</SelectItem>
+                      <SelectItem value="IN_PROGRESS">{t('complaintsTable.status.inProgress', 'In Progress')}</SelectItem>
+                      <SelectItem value="WORK_COMPLETED">{t('complaintsTable.status.workCompleted', 'Work Completed')}</SelectItem>
+                    </>
+                  ) : (
+                    <>
+                      <SelectItem value="OPEN">{t('complaintsTable.status.open', 'Open')}</SelectItem>
+                      <SelectItem value="ASSIGNED">{t('complaintsTable.status.assigned', 'Assigned')}</SelectItem>
+                      <SelectItem value="WORK_STARTED">{t('complaintsTable.status.workStarted', 'Work Started')}</SelectItem>
+                      <SelectItem value="IN_PROGRESS">{t('complaintsTable.status.inProgress', 'In Progress')}</SelectItem>
+                      <SelectItem value="WORK_COMPLETED">{t('complaintsTable.status.workCompleted', 'Work Completed')}</SelectItem>
+                      <SelectItem value="VERIFIED">{t('complaintsTable.status.verified', 'Verified')}</SelectItem>
+                      <SelectItem value="CLOSED">{t('complaintsTable.status.closed', 'Closed')}</SelectItem>
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
             </div>
-          )}
 
-          <div>
-            <label className="text-sm font-medium text-gray-700">{t('complaintsTable.updateStatus.comments', 'Comments')}</label>
-            <Textarea
-              placeholder={t('complaintsTable.updateStatus.commentsPlaceholder', 'Add comments about this status update...')}
-              value={comments}
-              onChange={(e) => setComments(e.target.value)}
-              className="mt-1"
-              rows={3}
-            />
+            {requiresCompletionProof && (
+              <div>
+                <label className="text-sm font-medium text-gray-700">
+                  {t('complaintsTable.contractor.resolutionImage', 'Resolved Complaint Image')}
+                </label>
+                <Input
+                  className="mt-1"
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setCompletionProofFile(e.target.files?.[0] || null)}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {completionProofFile
+                    ? completionProofFile.name
+                    : t('complaintsTable.contractor.resolutionImageHint', 'Upload a final photo before marking work as completed.')}
+                </p>
+              </div>
+            )}
+
+            <div>
+              <label className="text-sm font-medium text-gray-700">{t('complaintsTable.updateStatus.comments', 'Comments')}</label>
+              <Textarea
+                placeholder={t('complaintsTable.updateStatus.commentsPlaceholder', 'Add comments about this status update...')}
+                value={comments}
+                onChange={(e) => setComments(e.target.value)}
+                className="mt-1"
+                rows={3}
+              />
+            </div>
+            <Button
+              onClick={() => onUpdateStatus(complaint, newStatus, comments, completionProofFile)}
+              disabled={
+                isUpdating ||
+                newStatus === complaint.status ||
+                (requiresCompletionProof && !completionProofFile)
+              }
+              className="w-full"
+            >
+              {isUpdating ? t('complaintsTable.updateStatus.updating', 'Updating...') : t('complaintsTable.updateStatus.submit', 'Update Status')}
+            </Button>
           </div>
-          <Button
-            onClick={() => onUpdateStatus(complaint, newStatus, comments, completionProofFile)}
-            disabled={
-              isUpdating ||
-              newStatus === complaint.status ||
-              (requiresCompletionProof && !completionProofFile)
-            }
-            className="w-full"
-          >
-            {isUpdating ? t('complaintsTable.updateStatus.updating', 'Updating...') : t('complaintsTable.updateStatus.submit', 'Update Status')}
-          </Button>
-        </div>
+        )}
       </div>
 
       {/* Assign Contractor (Level 2) */}
       {enableContractorAssignment && (
         <div className="border-t pt-6">
-          <h3 className="font-semibold mb-4">{t('complaintsTable.assignContractor.title', 'Assign Contractor')}</h3>
+          <h3 className="font-semibold mb-4">
+            {normalizeComplaintStatus(complaint.status) === 'REASSIGN_REQUIRED'
+              ? t('complaintsTable.assignContractor.reassignTitle', 'Reassign Contractor')
+              : t('complaintsTable.assignContractor.title', 'Assign Contractor')}
+          </h3>
           <div className="space-y-4">
+            {normalizeComplaintStatus(complaint.status) === 'REASSIGN_REQUIRED' && (
+              <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                {t('complaintsTable.assignContractor.reassignHint', 'The original contractor missed the 6-hour acceptance SLA. Choose a new contractor to reassign this complaint.')}
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium text-gray-700">{t('complaintsTable.assignContractor.current', 'Currently Assigned')}</label>
@@ -879,10 +1014,15 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, i
                 if (!selectedContractorId || selectedContractorId === '__none') return;
                 setIsAssigning(true);
                 try {
+                  const wasReassignment = normalizeComplaintStatus(complaint.status) === 'REASSIGN_REQUIRED';
                   await onAssignContractor(complaint, selectedContractorId);
                   toast({
-                    title: t('complaintsTable.assignContractor.toast.successTitle', 'Assigned'),
-                    description: t('complaintsTable.assignContractor.toast.successDesc', 'Complaint assigned to contractor successfully'),
+                    title: wasReassignment
+                      ? t('complaintsTable.assignContractor.toast.reassignedTitle', 'Reassigned')
+                      : t('complaintsTable.assignContractor.toast.successTitle', 'Assigned'),
+                    description: wasReassignment
+                      ? t('complaintsTable.assignContractor.toast.reassignedDesc', 'Complaint reassigned to contractor successfully')
+                      : t('complaintsTable.assignContractor.toast.successDesc', 'Complaint assigned to contractor successfully'),
                   });
                 } catch (err) {
                   toast({
@@ -897,7 +1037,11 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, i
               disabled={isAssigning || isUpdating || !selectedContractorId || selectedContractorId === '__none'}
               className="w-full"
             >
-              {isAssigning ? t('complaintsTable.assignContractor.assigning', 'Assigning...') : t('complaintsTable.assignContractor.assign', 'Assign')}
+              {isAssigning
+                ? t('complaintsTable.assignContractor.assigning', 'Assigning...')
+                : normalizeComplaintStatus(complaint.status) === 'REASSIGN_REQUIRED'
+                  ? t('complaintsTable.assignContractor.reassign', 'Reassign')
+                  : t('complaintsTable.assignContractor.assign', 'Assign')}
             </Button>
           </div>
         </div>

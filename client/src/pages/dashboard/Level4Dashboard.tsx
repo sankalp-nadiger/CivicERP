@@ -126,6 +126,7 @@ export default function Level4Dashboard() {
     if ([
       'OPEN',
       'ASSIGNED',
+      'REASSIGN_REQUIRED',
       'WORK_STARTED',
       'IN_PROGRESS',
       'WORK_COMPLETED',
@@ -149,7 +150,7 @@ export default function Level4Dashboard() {
   const apiStats = {
     total: apiComplaints.length,
     open: apiComplaints.filter(c => normalizeComplaintStatus(c.status) === 'OPEN').length,
-    inProgress: apiComplaints.filter(c => ['ASSIGNED', 'WORK_STARTED', 'IN_PROGRESS', 'WORK_COMPLETED', 'VERIFIED'].includes(normalizeComplaintStatus(c.status))).length,
+    inProgress: apiComplaints.filter(c => ['ASSIGNED', 'REASSIGN_REQUIRED', 'WORK_STARTED', 'IN_PROGRESS', 'WORK_COMPLETED', 'VERIFIED'].includes(normalizeComplaintStatus(c.status))).length,
     closed: apiComplaints.filter(c => normalizeComplaintStatus(c.status) === 'CLOSED').length,
   };
   const executors = getSubordinates(users, currentUser.id);

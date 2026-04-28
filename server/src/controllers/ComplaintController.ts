@@ -10,6 +10,8 @@ import {
     canTransitionComplaintStatus,
     normalizeComplaintStatus,
 } from '../utils/complaintStatus.js';
+import { getAssignmentTimeRemaining } from '../utils/complaintAssignmentSla.js';
+import { createComplaintNotification } from '../utils/notificationService.js';
 
 const normalize = (value: unknown): string =>
     String(value ?? '')
@@ -881,6 +883,17 @@ class ComplaintController {
                 return;
             }
 
+            const currentStatus = normalizeComplaintStatus((complaint as any).status);
+            const assignmentRemaining = getAssignmentTimeRemaining((complaint as any).assignedAt);
+            if (currentStatus === 'REASSIGN_REQUIRED') {
+                res.status(409).json({ message: 'This complaint has been marked for reassignment and can no longer be updated by the previous contractor.' });
+                return;
+            }
+            if (currentStatus === 'ASSIGNED' && assignmentRemaining !== null && assignmentRemaining <= 0) {
+                res.status(409).json({ message: 'Assignment acceptance window expired. Complaint requires reassignment.' });
+                return;
+            }
+
             const assignedId = String((complaint as any).assignedContractorId || '').trim();
             const assignedName = String((complaint as any).assignedContractorName || '').trim();
             const contractorId = String((contractor as any)._id || '').trim();
@@ -892,6 +905,11 @@ class ComplaintController {
 
             if (!isAssignedToThisContractor) {
                 res.status(403).json({ message: 'You can update only complaints assigned to you.' });
+                return;
+            }
+
+            if (currentStatus === 'ASSIGNED' && assignmentRemaining !== null && assignmentRemaining <= 0) {
+                res.status(409).json({ message: 'Acceptance window expired. Start work is no longer allowed for this assignment.' });
                 return;
             }
 
@@ -983,22 +1001,48 @@ class ComplaintController {
                 return;
             }
 
-            const transition = canTransitionComplaintStatus((complaint as any).status, 'ASSIGNED');
-            if (!transition.ok) {
-                res.status(409).json({ message: transition.reason });
+            const currentStatus = normalizeComplaintStatus((complaint as any).status);
+            const assignmentRemaining = getAssignmentTimeRemaining((complaint as any).assignedAt);
+            let assignmentSourceStatus = currentStatus;
+
+            if (currentStatus === 'ASSIGNED' && assignmentRemaining !== null && assignmentRemaining > 0) {
+                res.status(409).json({ message: 'Complaint is already assigned and still within the 6-hour acceptance window.' });
                 return;
             }
 
+            if (currentStatus === 'ASSIGNED' && assignmentRemaining !== null && assignmentRemaining <= 0) {
+                assignmentSourceStatus = 'REASSIGN_REQUIRED';
+                (complaint as any).status = 'REASSIGN_REQUIRED';
+                (complaint as any).lastupdate = new Date();
+            }
+
+            if (currentStatus !== 'OPEN' && currentStatus !== 'REASSIGN_REQUIRED' && currentStatus !== 'ASSIGNED') {
+                res.status(409).json({ message: `Invalid transition ${String((complaint as any).status || '').toUpperCase()} -> ASSIGNED.` });
+                return;
+            }
+
+            const previousContractorId = String((complaint as any).assignedContractorId || '').trim();
+            const previousContractorName = String((complaint as any).assignedContractorName || '').trim();
+            const actor = (requester as any)?.email || (requester as any)?.username || 'Level2';
             // Update complaint assignment fields
             (complaint as any).assignedContractorId = (contractor as any)._id;
             (complaint as any).assignedContractorName = String((contractor as any).name || '').trim();
             (complaint as any).assignedAt = new Date();
             (complaint as any).assignedBy = (requester as any)?._id;
             (complaint as any).status = 'ASSIGNED';
+            (complaint as any).assignmentHistory = Array.isArray((complaint as any).assignmentHistory) ? (complaint as any).assignmentHistory : [];
+            (complaint as any).assignmentHistory.push({
+                action: assignmentSourceStatus === 'REASSIGN_REQUIRED' ? 'REASSIGNED' : 'ASSIGNED',
+                previousContractorId: previousContractorId || undefined,
+                previousContractorName: previousContractorName || undefined,
+                contractorId: (contractor as any)?._id,
+                contractorName: String((contractor as any).name || '').trim(),
+                assignedAt: new Date(),
+                assignedBy: (requester as any)?._id,
+            });
 
-            const actor = (requester as any)?.email || (requester as any)?.username || 'Level2';
             const assignmentComment = [
-                'ASSIGNED',
+                assignmentSourceStatus === 'REASSIGN_REQUIRED' ? 'REASSIGNED' : 'ASSIGNED',
                 actor,
                 new Date().toISOString(),
                 `Assigned to ${(contractor as any).name}`
@@ -1008,6 +1052,19 @@ class ComplaintController {
             (complaint as any).lastupdate = new Date();
 
             await complaint.save();
+
+            if (previousContractorId && previousContractorId !== String((contractor as any)._id || '').trim()) {
+                await Contractor.updateOne(
+                    { _id: previousContractorId },
+                    {
+                        $set: {
+                            availabilityStatus: 'AVAILABLE',
+                            currentAssignedTask: '',
+                            lastLocationUpdateAt: new Date(),
+                        },
+                    }
+                );
+            }
 
             // Also mark contractor as BUSY and attach a readable task label
             const taskLabel = `Complaint ${complaintId}${(complaint as any).title ? `: ${(complaint as any).title}` : ''}`.trim();
@@ -1021,6 +1078,29 @@ class ComplaintController {
                     },
                 }
             );
+
+            await createComplaintNotification({
+                recipient: {
+                    userId: String((contractor as any).userId || '').trim() || null,
+                    email: String((contractor as any).email || '').trim() || null,
+                    role: 'contractor',
+                },
+                type: assignmentSourceStatus === 'REASSIGN_REQUIRED' ? 'complaint.reassigned' : 'complaint.assigned',
+                title: assignmentSourceStatus === 'REASSIGN_REQUIRED' ? 'Complaint reassigned to you' : 'New complaint assigned',
+                message: assignmentSourceStatus === 'REASSIGN_REQUIRED'
+                    ? 'A complaint was reassigned to you after the previous contractor missed the 6-hour acceptance SLA.'
+                    : 'A new complaint has been assigned to you. Please start work within 6 hours.',
+                relatedComplaintId: complaintId,
+                metadata: {
+                    complaintId,
+                    contractorId: String((contractor as any)._id || '').trim(),
+                    contractorName: String((contractor as any).name || '').trim(),
+                    previousContractorId: previousContractorId || null,
+                    previousContractorName: previousContractorName || null,
+                    slaHours: 6,
+                    assignedAt: new Date(),
+                },
+            });
 
             res.status(200).json({ message: 'Assigned successfully', complaint });
         } catch (e: any) {

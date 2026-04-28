@@ -17,6 +17,110 @@ import { useToast } from '@/hooks/use-toast';
 
 const toFixed = (n: number, digits = 3) => (Number.isFinite(n) ? n.toFixed(digits) : '-');
 
+const isValidCoordinatePair = (lat: number, lng: number): boolean =>
+  Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+
+const getAreaAliasCoordinates = (rawArea: string): { latitude: number; longitude: number } | null => {
+  const key = String(rawArea || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // Fixed anchor near Kukkarahalli Lake for VV Mohalla variants.
+  if (/^v\s*v\s*mohalla$/.test(key) || /^vv\s*mohalla$/.test(key) || /^vv\s*mohala$/.test(key)) {
+    return {
+      latitude: 12.3136,
+      longitude: 76.6319,
+    };
+  }
+
+  return null;
+};
+
+const normalizeAreaForGeocoding = (value: string): string => {
+  let normalized = String(value || '').trim();
+  if (!normalized) return normalized;
+
+  const replacements: Array<[RegExp, string]> = [
+    [/\bmohala\b/gi, 'mohalla'],
+    [/\bmohalla\b/gi, 'mohalla'],
+    [/\bmaysuru\b/gi, 'mysuru'],
+    [/\bmysore\b/gi, 'mysuru'],
+    [/\bvv\s*mohalla\b/gi, 'V V Mohalla'],
+    [/\bvv\s*puram\b/gi, 'V V Puram'],
+  ];
+
+  for (const [pattern, replacement] of replacements) {
+    normalized = normalized.replace(pattern, replacement);
+  }
+
+  return normalized.replace(/\s+/g, ' ').trim();
+};
+
+const geocodeAreaToCoordinates = async (params: {
+  area: string;
+  zone?: string;
+  ward?: string;
+}): Promise<{ latitude: number; longitude: number } | null> => {
+  const area = String(params.area || '').trim();
+  const zone = String(params.zone || '').trim();
+  const ward = String(params.ward || '').trim();
+  if (!area) return null;
+
+  const aliased = getAreaAliasCoordinates(area);
+  if (aliased) return aliased;
+
+  const normalizedArea = normalizeAreaForGeocoding(area);
+
+  const candidateQueries = Array.from(
+    new Set(
+      [
+        [normalizedArea, ward, zone].filter(Boolean).join(', '),
+        [normalizedArea, ward, zone, 'India'].filter(Boolean).join(', '),
+        [normalizedArea, zone, 'India'].filter(Boolean).join(', '),
+        [normalizedArea, 'Mysuru', 'Karnataka', 'India'].filter(Boolean).join(', '),
+        [normalizedArea, 'Mysuru', 'India'].filter(Boolean).join(', '),
+        [normalizedArea, 'India'].filter(Boolean).join(', '),
+        [area, 'Mysuru', 'India'].filter(Boolean).join(', '),
+      ]
+        .map(q => q.trim())
+        .filter(Boolean)
+    )
+  );
+
+  for (const query of candidateQueries) {
+    try {
+      const search = new URLSearchParams({
+        format: 'jsonv2',
+        q: query,
+        limit: '1',
+      });
+
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?${search.toString()}`, {
+        method: 'GET',
+        cache: 'no-store',
+      });
+
+      if (!response.ok) continue;
+
+      const results = (await response.json()) as Array<{ lat?: string; lon?: string }>;
+      const first = results?.[0];
+      if (!first) continue;
+
+      const lat = Number(first.lat);
+      const lng = Number(first.lon);
+      if (isValidCoordinatePair(lat, lng)) {
+        return { latitude: lat, longitude: lng };
+      }
+    } catch {
+      // Try the next query variant if geocoding fails.
+    }
+  }
+
+  return null;
+};
+
 const FitBounds: React.FC<{ points: Array<{ lat: number; lng: number }> }> = ({ points }) => {
   const map = useMap();
 
@@ -106,11 +210,85 @@ export const ContractorMonitoring: React.FC<{
     [contractors]
   );
 
+  const [derivedCoordinates, setDerivedCoordinates] = React.useState<Record<string, { latitude: number; longitude: number }>>({});
+
+  React.useEffect(() => {
+    if (!showMap) return;
+
+    const missingCoordinates = contractors.filter(
+      c =>
+        c._id &&
+        !Number.isFinite(c.latitude) &&
+        !Number.isFinite(c.longitude) &&
+        !derivedCoordinates[c._id] &&
+        String(c.area || '').trim()
+    );
+
+    if (!missingCoordinates.length) return;
+
+    let cancelled = false;
+
+    const run = async () => {
+      for (const contractor of missingCoordinates.slice(0, 15)) {
+        if (cancelled) return;
+
+        const found = await geocodeAreaToCoordinates({
+          area: String(contractor.area || ''),
+          zone: String(contractor.zone || ''),
+          ward: String(contractor.ward || ''),
+        });
+
+        if (cancelled || !found) continue;
+
+        setDerivedCoordinates(prev => {
+          if (prev[contractor._id]) return prev;
+          return {
+            ...prev,
+            [contractor._id]: {
+              latitude: found.latitude,
+              longitude: found.longitude,
+            },
+          };
+        });
+      }
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showMap, contractors, derivedCoordinates]);
+
+  const mapContractors = React.useMemo(
+    () =>
+      contractors
+        .map(c => {
+          if (Number.isFinite(c.latitude) && Number.isFinite(c.longitude)) return c;
+          const derived = derivedCoordinates[c._id];
+          if (!derived) return c;
+          return {
+            ...c,
+            latitude: derived.latitude,
+            longitude: derived.longitude,
+          } as Contractor;
+        })
+        .filter(c => Number.isFinite(c.latitude) && Number.isFinite(c.longitude)),
+    [contractors, derivedCoordinates]
+  );
+
+  const mapPointsWithFallback = React.useMemo(
+    () => mapContractors.map(c => ({ lat: c.latitude as number, lng: c.longitude as number })),
+    [mapContractors]
+  );
+
   const handleCreateContractor = async () => {
     const name = form.name.trim();
     const email = form.email.trim().toLowerCase();
     const phoneNumber = form.phoneNumber.trim();
     const area = form.area.trim();
+    const zoneValue = form.zone.trim();
+    const wardValue = form.ward.trim();
 
     if (!name || !email || !phoneNumber || !area) {
       toast({
@@ -123,13 +301,33 @@ export const ContractorMonitoring: React.FC<{
 
     setIsCreating(true);
     try {
+      const coordinates = await geocodeAreaToCoordinates({
+        area,
+        zone: zoneValue,
+        ward: wardValue,
+      });
+
+      if (!coordinates) {
+        toast({
+          title: t('level2.contractors.toast.areaNotFoundTitle', 'Area not found on map'),
+          description: t(
+            'level2.contractors.toast.areaNotFoundDescription',
+            'Please enter a more specific area (include ward/zone if available) so coordinates can be mapped.'
+          ),
+          variant: 'destructive',
+        });
+        return;
+      }
+
       const result = await createContractor({
         name,
         email,
         phoneNumber,
         area,
-        zone: form.zone.trim() || undefined,
-        ward: form.ward.trim() || undefined,
+        latitude: coordinates.latitude,
+        longitude: coordinates.longitude,
+        zone: zoneValue || undefined,
+        ward: wardValue || undefined,
         departmentId: defaultDepartmentId || undefined,
         departmentName: departmentName || defaultDepartmentName || undefined,
       });
@@ -196,13 +394,13 @@ export const ContractorMonitoring: React.FC<{
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label>{t('level2.contractors.dialog.fields.zone', 'Zone (optional)')}</Label>
+                    {/* <Label>{t('level2.contractors.dialog.fields.zone', 'Zone (optional)')}</Label> */}
                     <Input value={form.zone} onChange={(e) => setForm(prev => ({ ...prev, zone: e.target.value }))} />
                   </div>
-                  <div>
+                  {/* <div>
                     <Label>{t('level2.contractors.dialog.fields.ward', 'Ward (optional)')}</Label>
                     <Input value={form.ward} onChange={(e) => setForm(prev => ({ ...prev, ward: e.target.value }))} />
-                  </div>
+                  </div> */}
                 </div>
                 <Button className="w-full" onClick={handleCreateContractor} disabled={isCreating}>
                   {isCreating ? t('level2.contractors.dialog.submitButton.creating', 'Creating...') : t('level2.contractors.dialog.submitButton.submit', 'Create & Send Credentials')}
@@ -240,7 +438,7 @@ export const ContractorMonitoring: React.FC<{
 
             <div className="space-y-1">
               <div className="text-xs text-gray-600">{t('level2.contractors.filters.department', 'Department')}</div>
-              <Select
+              {/* <Select
                 value={departmentName || 'ALL'}
                 onValueChange={(v) => setDepartmentName(v === 'ALL' ? '' : v)}
               >
@@ -253,12 +451,12 @@ export const ContractorMonitoring: React.FC<{
                     <SelectItem key={d} value={d}>{d}</SelectItem>
                   ))}
                 </SelectContent>
-              </Select>
+              </Select> */}
             </div>
 
             <div className="space-y-1">
               <div className="text-xs text-gray-600">{t('level2.contractors.filters.zone', 'Zone')}</div>
-              <Select value={zone} onValueChange={setZone}>
+              {/* <Select value={zone} onValueChange={setZone}>
                 <SelectTrigger>
                   <SelectValue placeholder={t('level2.contractors.filters.placeholder', 'All')} />
                 </SelectTrigger>
@@ -268,12 +466,12 @@ export const ContractorMonitoring: React.FC<{
                     <SelectItem key={z} value={z}>{z}</SelectItem>
                   ))}
                 </SelectContent>
-              </Select>
+              </Select> */}
             </div>
 
             <div className="space-y-1">
               <div className="text-xs text-gray-600">{t('level2.contractors.filters.ward', 'Ward')}</div>
-              <Select value={ward} onValueChange={setWard}>
+              {/* <Select value={ward} onValueChange={setWard}>
                 <SelectTrigger>
                   <SelectValue placeholder={t('level2.contractors.filters.placeholder', 'All')} />
                 </SelectTrigger>
@@ -283,7 +481,7 @@ export const ContractorMonitoring: React.FC<{
                     <SelectItem key={w} value={w}>{w}</SelectItem>
                   ))}
                 </SelectContent>
-              </Select>
+              </Select> */}
             </div>
           </div>
 
@@ -299,12 +497,12 @@ export const ContractorMonitoring: React.FC<{
             <CardTitle className="text-base">{t('level2.contractors.map.title', 'Map')}</CardTitle>
           </CardHeader>
           <CardContent>
-            {mappableContractors.length === 0 ? (
+            {mapContractors.length === 0 ? (
               <div className="rounded border bg-white p-6 text-sm text-gray-600">{t('level2.contractors.map.noContractors', 'No contractors to display.')}</div>
             ) : (
               <div className="overflow-hidden rounded border bg-white">
                 <MapContainer
-                  center={[mappableContractors[0].latitude as number, mappableContractors[0].longitude as number] as [number, number]}
+                  center={[mapContractors[0].latitude as number, mapContractors[0].longitude as number] as [number, number]}
                   zoom={12}
                   style={{ height: 360, width: '100%' }}
                   scrollWheelZoom
@@ -313,9 +511,9 @@ export const ContractorMonitoring: React.FC<{
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                   />
-                  <FitBounds points={mapPoints} />
+                  <FitBounds points={mapPointsWithFallback} />
 
-                  {mappableContractors.map((c: Contractor) => {
+                  {mapContractors.map((c: Contractor) => {
                     const color = c.availabilityStatus === 'AVAILABLE' ? '#16a34a' : '#dc2626';
                     const gm = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${c.latitude},${c.longitude}`)}`;
                     return (

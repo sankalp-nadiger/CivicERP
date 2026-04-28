@@ -1,6 +1,7 @@
 export const COMPLAINT_STATUS_FLOW = [
   'OPEN',
   'ASSIGNED',
+  'REASSIGN_REQUIRED',
   'WORK_STARTED',
   'IN_PROGRESS',
   'WORK_COMPLETED',
@@ -19,6 +20,9 @@ const LEGACY_TO_CANONICAL: Record<string, ComplaintStatus> = {
 
   // Assigned
   assigned: 'ASSIGNED',
+  'reassign required': 'REASSIGN_REQUIRED',
+  reassign_required: 'REASSIGN_REQUIRED',
+  'not accepted': 'REASSIGN_REQUIRED',
 
   // Work started
   work_started: 'WORK_STARTED',
@@ -80,18 +84,25 @@ export const canTransitionComplaintStatus = (
     return { ok: true, current, next };
   }
 
-  const currentIndex = COMPLAINT_STATUS_FLOW.indexOf(current);
-  const nextIndex = COMPLAINT_STATUS_FLOW.indexOf(next);
-  const isImmediateNext = nextIndex === currentIndex + 1;
+  const allowedTransitions: Record<ComplaintStatus, ComplaintStatus[]> = {
+    OPEN: ['ASSIGNED'],
+    ASSIGNED: ['WORK_STARTED', 'REASSIGN_REQUIRED'],
+    REASSIGN_REQUIRED: ['ASSIGNED'],
+    WORK_STARTED: ['IN_PROGRESS'],
+    IN_PROGRESS: ['WORK_COMPLETED'],
+    WORK_COMPLETED: ['VERIFIED'],
+    VERIFIED: ['CLOSED'],
+    CLOSED: [],
+  };
 
-  if (!isImmediateNext) {
-    const expectedNext = COMPLAINT_STATUS_FLOW[currentIndex + 1];
+  const allowedNextStatuses = allowedTransitions[current] || [];
+  if (!allowedNextStatuses.includes(next)) {
     return {
       ok: false,
       current,
       next,
-      reason: expectedNext
-        ? `Invalid transition ${current} -> ${next}. Next allowed status is ${expectedNext}.`
+      reason: allowedNextStatuses.length
+        ? `Invalid transition ${current} -> ${next}. Next allowed status is ${allowedNextStatuses.join(' or ')}.`
         : `Invalid transition ${current} -> ${next}. Complaint is already in terminal status ${current}.`,
     };
   }

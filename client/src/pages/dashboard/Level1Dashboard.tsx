@@ -58,6 +58,39 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+const COMPLAINT_STATUS_FLOW = [
+  'OPEN',
+  'ASSIGNED',
+  'WORK_STARTED',
+  'IN_PROGRESS',
+  'WORK_COMPLETED',
+  'VERIFIED',
+  'CLOSED',
+] as const;
+
+type ComplaintStatus = (typeof COMPLAINT_STATUS_FLOW)[number];
+
+const normalizeComplaintStatus = (raw: unknown): ComplaintStatus | null => {
+  const text = String(raw ?? '').trim();
+  if (!text) return null;
+
+  const upper = text.toUpperCase();
+  if ((COMPLAINT_STATUS_FLOW as readonly string[]).includes(upper)) {
+    return upper as ComplaintStatus;
+  }
+
+  const lower = text.toLowerCase();
+  if (lower === 'todo' || lower.includes('registered') || lower === 'open') return 'OPEN';
+  if (lower === 'assigned') return 'ASSIGNED';
+  if (lower === 'work_started' || lower === 'work started' || lower === 'started') return 'WORK_STARTED';
+  if (lower === 'in-progress' || lower === 'in progress' || lower === 'in_progress' || lower === 'progress' || lower.includes('investigation')) return 'IN_PROGRESS';
+  if (lower === 'work_completed' || lower === 'work completed' || lower === 'completed' || lower === 'work done') return 'WORK_COMPLETED';
+  if (lower === 'verified') return 'VERIFIED';
+  if (lower === 'closed' || lower === 'resolved') return 'CLOSED';
+
+  return null;
+};
+
 export default function Level1Dashboard() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -86,13 +119,6 @@ export default function Level1Dashboard() {
   const [itemToDelete, setItemToDelete] = useState<{type: 'department' | 'area' | 'user', id: string, name: string} | null>(null);
   const [predictInsights, setPredictInsights] = useState<PredictInsight[]>([]);
   const [isPredicting, setIsPredicting] = useState(false);
-
-  const visibleComplaints = React.useMemo(() => {
-    return apiComplaints.filter(c => {
-      const s = String(c.status || '').toLowerCase();
-      return !s.includes('resolved');
-    });
-  }, [apiComplaints]);
   
   // Determine active section from URL path
   const getActiveSectionFromPath = () => {
@@ -200,13 +226,25 @@ export default function Level1Dashboard() {
   const level2Users = getUsersByLevel(users, "LEVEL_2");
   const level3Users = getUsersByLevel(users, "LEVEL_3");
 
+  const complaintCounts = React.useMemo(() => {
+    return apiComplaints.reduce(
+      (acc, complaint) => {
+        const status = normalizeComplaintStatus(complaint.status);
+        if (status === 'OPEN') acc.open += 1;
+        if (status === 'ASSIGNED' || status === 'WORK_STARTED' || status === 'IN_PROGRESS') acc.inProgress += 1;
+        if (status === 'CLOSED') acc.closed += 1;
+        return acc;
+      },
+      { open: 0, inProgress: 0, closed: 0 }
+    );
+  }, [apiComplaints]);
+
   // Calculate stats from API complaints.
-  // The complaints table hides resolved items, so keep "total" aligned to what's visible.
   const apiStats = {
-    total: visibleComplaints.length,
-    open: visibleComplaints.filter(c => c.status.toLowerCase().includes('todo') || c.status.toLowerCase().includes('registered')).length,
-    inProgress: visibleComplaints.filter(c => c.status.toLowerCase().includes('progress') || c.status.toLowerCase().includes('investigation')).length,
-    closed: apiComplaints.filter(c => c.status.toLowerCase().includes('completed') || c.status.toLowerCase().includes('resolved')).length,
+    total: apiComplaints.length,
+    open: complaintCounts.open,
+    inProgress: complaintCounts.inProgress,
+    closed: complaintCounts.closed,
     breached: 0, // Would need SLA data from backend
   };
 
@@ -372,15 +410,15 @@ export default function Level1Dashboard() {
 
   // Prepare chart data
   const complaintStatusData = [
-    { name: t("complaintsTable.status.todo", "To Do"), value: visibleComplaints.filter(c => c.status.toLowerCase().includes('todo') || c.status.toLowerCase().includes('registered')).length },
-    { name: t("complaintsTable.status.inProgress", "In Progress"), value: visibleComplaints.filter(c => c.status.toLowerCase().includes('progress') || c.status.toLowerCase().includes('investigation')).length },
-    { name: t("complaintsTable.status.completed", "Completed"), value: apiComplaints.filter(c => c.status.toLowerCase().includes('completed') || c.status.toLowerCase().includes('resolved')).length },
+    { name: t("complaintsTable.status.todo", "To Do"), value: complaintCounts.open },
+    { name: t("complaintsTable.status.inProgress", "In Progress"), value: complaintCounts.inProgress },
+    { name: t("complaintsTable.status.closed", "Closed"), value: complaintCounts.closed },
   ].filter(d => d.value > 0);
 
   const priorityData = [
-    { name: t("complaintsTable.priority.high", "High"), value: visibleComplaints.filter(c => c.priority_factor >= 0.7).length },
-    { name: t("complaintsTable.priority.medium", "Medium"), value: visibleComplaints.filter(c => c.priority_factor >= 0.4 && c.priority_factor < 0.7).length },
-    { name: t("complaintsTable.priority.low", "Low"), value: visibleComplaints.filter(c => c.priority_factor < 0.4).length },
+    { name: t("complaintsTable.priority.high", "High"), value: apiComplaints.filter(c => c.priority_factor >= 0.7).length },
+    { name: t("complaintsTable.priority.medium", "Medium"), value: apiComplaints.filter(c => c.priority_factor >= 0.4 && c.priority_factor < 0.7).length },
+    { name: t("complaintsTable.priority.low", "Low"), value: apiComplaints.filter(c => c.priority_factor < 0.4).length },
   ].filter(d => d.value > 0);
 
   const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444"];
@@ -500,7 +538,7 @@ export default function Level1Dashboard() {
                 </div>
 
                 <ComplaintsHeatmap
-                  complaints={visibleComplaints}
+                  complaints={apiComplaints}
                   title={t("dashboard.heatmap.title", "Complaints Heatmap")}
                 />
 

@@ -5,6 +5,7 @@ import { connect } from "mongoose";
 import { config } from "dotenv";
 import mainRouter from "./routes/index.js";
 import { initRedis } from "./utils/RedisSetup.js";
+import { sweepExpiredComplaintAssignments } from "./utils/complaintAssignmentSla.js";
 
 config();
 
@@ -76,6 +77,20 @@ async function startServer() {
     // Redis init
     await initRedis();
     console.log("✅ Redis initialized");
+
+    const runAssignmentSlaSweep = async () => {
+      try {
+        const processed = await sweepExpiredComplaintAssignments();
+        if (processed > 0) {
+          console.log(`✅ Complaint assignment SLA sweep processed ${processed} complaint(s)`);
+        }
+      } catch (error: any) {
+        console.error('❌ Complaint assignment SLA sweep failed:', error?.message || error);
+      }
+    };
+
+    await runAssignmentSlaSweep();
+    setInterval(runAssignmentSlaSweep, 5 * 60 * 1000);
 
     // IMPORTANT: Start server LAST
     app.listen(PORT, () => {

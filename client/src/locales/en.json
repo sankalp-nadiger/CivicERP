@@ -344,6 +344,7 @@
       "title": "Title",
       "category": "Category",
       "status": "Status",
+      "sla": "SLA",
       "priority": "Priority",
       "date": "Date",
       "actions": "Actions"
@@ -358,12 +359,14 @@
       "fullComplaint": "Full Complaint",
       "aiSummary": "AI Summary",
       "proof": "Proof",
+      "assignmentSla": "Assignment SLA",
       "commentHistory": "Comment History"
     },
     "status": {
       "all": "All Status",
       "open": "Open",
-      "assigned": "Assigned",
+      "assigned": "Waiting for Acceptance",
+      "reassignRequired": "Not Accepted",
       "workStarted": "Work Started",
       "workCompleted": "Work Completed",
       "verified": "Verified",
@@ -373,6 +376,17 @@
       "underInvestigation": "Under Investigation",
       "completed": "Completed",
       "resolved": "Resolved"
+    },
+    "assignmentSla": {
+      "title": "Assignment SLA",
+      "waiting": "Waiting for Acceptance",
+      "notAccepted": "Not Accepted",
+      "assignedAt": "Assigned At",
+      "deadline": "Acceptance Deadline",
+      "countdown": "Countdown",
+      "activeHint": "The contractor must click Start Work within 6 hours to accept the assignment.",
+      "expiredHint": "This complaint missed the 6-hour acceptance SLA and must be reassigned before contractors can continue.",
+      "contractorBlocked": "This complaint has expired and cannot be updated until the department head reassigns it."
     },
     "priority": {
       "high": "High",
@@ -392,6 +406,27 @@
       "statusUpdatedDesc": "Complaint status has been updated successfully",
       "updateFailedTitle": "Update Failed",
       "updateFailedDesc": "Failed to update complaint status"
+    },
+    "assignContractor": {
+      "title": "Assign Contractor",
+      "reassignTitle": "Reassign Contractor",
+      "current": "Currently Assigned",
+      "available": "Available Contractors",
+      "none": "Not assigned",
+      "select": "Select a contractor",
+      "noContractors": "No available contractors",
+      "reassignHint": "The original contractor missed the 6-hour acceptance SLA. Choose a new contractor to reassign this complaint.",
+      "reassign": "Reassign",
+      "assign": "Assign",
+      "assigning": "Assigning...",
+      "toast": {
+        "successTitle": "Assigned",
+        "successDesc": "Complaint assigned to contractor successfully",
+        "reassignedTitle": "Reassigned",
+        "reassignedDesc": "Complaint reassigned to contractor successfully",
+        "failTitle": "Assignment failed",
+        "failDesc": "Failed to assign complaint"
+      }
     },
     "translating": "Translating..."
   },

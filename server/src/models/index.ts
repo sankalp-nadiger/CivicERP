@@ -7,5 +7,6 @@ import Department from "./DepartmentModel.js";
 import Area from "./AreaModel.js";
 import Officer from "./OfficerModel.js";
 import Contractor from "./ContractorModel.js";
+import Notification from "./NotificationModel.js";
 
-export { User, Complaint, CityLevel, PanchayatLevel, Role, Department, Area, Officer, Contractor };
+export { User, Complaint, CityLevel, PanchayatLevel, Role, Department, Area, Officer, Contractor, Notification };
