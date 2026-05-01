@@ -965,6 +965,8 @@ class ComplaintController {
                     triggeredAt: new Date(),
                     note: typeof comments === 'string' && comments.trim() ? comments.trim() : 'Contractor rejected assignment within acceptance SLA',
                 });
+                // Clear assignedAt so SLA countdown stops and SLA sweep ignores this record
+                (complaint as any).assignedAt = undefined;
             }
 
             await complaint.save();
@@ -988,15 +990,16 @@ class ComplaintController {
                 if (assignedById) {
                     const deptHead = await User.findById(assignedById).select('_id email role').lean();
                     if (deptHead) {
+                        // Notify department head that reassignment is required (they should reassign)
                         await createComplaintNotification({
                             recipient: {
                                 userId: String((deptHead as any)._id || '').trim(),
                                 email: String((deptHead as any).email || '').trim(),
                                 role: String((deptHead as any).role || '').trim(),
                             },
-                            type: 'complaint.assignment.rejected',
-                            title: 'Contractor rejected assignment',
-                            message: 'The assigned contractor rejected this complaint within the acceptance SLA. Please reassign it.',
+                            type: 'complaint.assignment.reassign_required',
+                            title: 'Complaint reassignment required',
+                            message: 'The assigned contractor rejected this complaint within the acceptance SLA. Please reassign it to another contractor.',
                             relatedComplaintId: complaintId,
                             metadata: {
                                 contractorId: assignedId || contractorId || null,
