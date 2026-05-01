@@ -4,8 +4,10 @@ import { v4 } from "uuid";
 import bcryptjs from 'bcryptjs';
 import client from "../utils/RedisSetup.js";
 import axios from "axios";
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { getTranslatedComplaint } from '../services/translationService.js';
+import {
+    generateComplaintTranslations,
+    getTranslatedComplaint,
+} from '../services/translationService.js';
 import {
     canTransitionComplaintStatus,
     normalizeComplaintStatus,
@@ -351,12 +353,18 @@ class ComplaintController {
                 mycomplaint.priority_factor = typeof mycomplaint.priority_factor === 'number' && mycomplaint.priority_factor > 0 ? mycomplaint.priority_factor : 0.5;
             }
 
-            // Save complaint
-            mycomplaint.complaint = complaint_to_be_added;
+            // Save complaint + persist multilingual translations once at creation time.
+            const translationPayload = await generateComplaintTranslations(complaint_to_be_added, issue_category);
+
             mycomplaint.complaintOriginal = complaint_to_be_added;
-            mycomplaint.originalLanguage = normalizePreferredLang(req.body?.originalLanguage || req.body?.lang);
+            mycomplaint.originalLanguage = translationPayload.originalLanguage;
+            mycomplaint.translations = new Map(Object.entries(translationPayload.translations));
+            mycomplaint.categoryTranslations = new Map(
+              Object.entries(translationPayload.categoryTranslations).map(([lang, cats]) => [lang, cats])
+            );
+            mycomplaint.complaint = translationPayload.translations.en || complaint_to_be_added;
+            mycomplaint.issue_category = translationPayload.categoryTranslations.en || issue_category;
             mycomplaint.complaint_proof = complaint_proof;
-            mycomplaint.issue_category = issue_category;
             // Reference the user who raised the complaint
             mycomplaint.raisedBy = user._id;
             mycomplaint.complaint_id = complaint_id;

@@ -103,6 +103,7 @@ export default function Level1Dashboard() {
     areas,
     users,
     complaints,
+    isInitialized,
     setCurrentUser,
     addDepartment,
     removeDepartment,
@@ -173,14 +174,14 @@ export default function Level1Dashboard() {
   );
 
   React.useEffect(() => {
-    if (!currentUser) {
+    if (!currentUser && users.length > 0 && governanceType) {
       // Auto-select LEVEL_1 user if not selected
       const level1User = users.find(u => u.level === "LEVEL_1");
       if (level1User) {
         setCurrentUser(level1User);
       }
     }
-  }, [currentUser, users, setCurrentUser]);
+  }, [currentUser, users, governanceType, setCurrentUser]);
 
   useEffect(() => {
     // Initial load (shows loading state in complaints tab)
@@ -203,8 +204,19 @@ export default function Level1Dashboard() {
     };
   }, [fetchComplaints]);
 
-  if (!currentUser || !governanceType) {
-    return null;
+  if (!isInitialized || !currentUser || !governanceType) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-gray-50">
+        <Card className="w-96">
+          <CardContent className="p-8 text-center">
+            <div className="flex justify-center mb-4">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+            <p className="text-gray-600">{t("common.loading", "Loading...")}</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   const governanceKey = governanceType.toLowerCase() as "city" | "panchayat";

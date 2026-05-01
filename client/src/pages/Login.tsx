@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Building2, Lock, Mail, AlertCircle } from 'lucide-react';
+import { Building2, Lock, Mail, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 
 export const Login: React.FC = () => {
@@ -17,6 +17,7 @@ export const Login: React.FC = () => {
   const { initializeGovernance } = useGovernance();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -73,6 +74,13 @@ export const Login: React.FC = () => {
         }
         const role = (userData.role || '').toLowerCase();
         
+        // Determine governance type from userData
+        const governanceTypeFromData = userData.governanceType || 
+          (email.toLowerCase().includes('panchayat') ? 'panchayat' : 'city');
+        
+        // Initialize governance context with the appropriate type
+        initializeGovernance(governanceTypeFromData === 'panchayat' ? 'PANCHAYAT' : 'CITY');
+        
         // Store user data in auth context
         login({ 
           email: userData.email, 
@@ -89,40 +97,42 @@ export const Login: React.FC = () => {
         });
 
         // Route based on user role and governance level
-        if (role === 'contractor') {
-          navigate('/dashboard/level4');
-        } else if (role === 'admin' || role === 'authority') {
-          // Prefer explicit governanceLevel from backend (e.g. 'LEVEL_2')
-          const rawGovLevel = (userData.governanceLevel || '').toString().toUpperCase();
-          const directLevelMatch = rawGovLevel.match(/^LEVEL_(\d+)$/);
-          if (directLevelMatch) {
-            const level = Number(directLevelMatch[1]);
-            if (level >= 1 && level <= 4) {
-              navigate(`/dashboard/level${level}`);
-              setIsLoading(false);
-              return;
+        // Use setTimeout to allow React state updates to complete before navigation
+        setTimeout(() => {
+          if (role === 'contractor') {
+            navigate('/dashboard/level4');
+          } else if (role === 'admin' || role === 'authority') {
+            // Prefer explicit governanceLevel from backend (e.g. 'LEVEL_2')
+            const rawGovLevel = (userData.governanceLevel || '').toString().toUpperCase();
+            const directLevelMatch = rawGovLevel.match(/^LEVEL_(\d+)$/);
+            if (directLevelMatch) {
+              const level = Number(directLevelMatch[1]);
+              if (level >= 1 && level <= 4) {
+                navigate(`/dashboard/level${level}`);
+                setIsLoading(false);
+                return;
+              }
             }
-          }
 
-          // Fallback: detect governance level from strings like 'city-level2'
-          const govMatch = (userData.governanceLevel || userData.role || email).match(/(city|panchayat)?[-_]?level(\d)/i);
-          if (govMatch) {
-            const level = Number(govMatch[2]);
-            if (level >= 1 && level <= 4) {
-              navigate(`/dashboard/level${level}`);
-              setIsLoading(false);
-              return;
+            // Fallback: detect governance level from strings like 'city-level2'
+            const govMatch = (userData.governanceLevel || userData.role || email).match(/(city|panchayat)?[-_]?level(\d)/i);
+            if (govMatch) {
+              const level = Number(govMatch[2]);
+              if (level >= 1 && level <= 4) {
+                navigate(`/dashboard/level${level}`);
+                setIsLoading(false);
+                return;
+              }
             }
+            
+            // Default admin dashboard if no level found
+            navigate('/dashboard/level1');
+          } else {
+            // Regular users go to citizen dashboard or home
+            navigate('/');
           }
-          
-          // Default admin dashboard if no level found
-          navigate('/dashboard/level1');
-        } else {
-          // Regular users go to citizen dashboard or home
-          navigate('/');
-        }
-        setIsLoading(false);
-        return;
+          setIsLoading(false);
+        }, 100);
       }
 
       // Handle authentication errors from backend
@@ -187,14 +197,24 @@ export const Login: React.FC = () => {
               <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
                 id="password"
-                type="password"
+                type={showPassword ? "text" : "password"}
                 placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyPress={handleKeyPress}
                 disabled={isLoading}
-                className="pl-10"
+                className="pl-10 pr-10"
               />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0 hover:bg-transparent"
+                onClick={() => setShowPassword(!showPassword)}
+                disabled={isLoading}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4 text-gray-400" /> : <Eye className="h-4 w-4 text-gray-400" />}
+              </Button>
             </div>
           </div>
 

@@ -17,6 +17,7 @@ interface GovernanceContextType {
   users: User[];
   complaints: Complaint[];
   setupComplete: boolean;
+  isInitialized: boolean;
 
   // Actions
   initializeGovernance: (governanceType: GovernanceType) => void;
@@ -45,6 +46,7 @@ export const GovernanceProvider: React.FC<{ children: ReactNode }> = ({ children
   const [users, setUsers] = useState<User[]>([]);
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [setupComplete, setSetupComplete] = useState(isSetupComplete());
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // Initialize from localStorage on mount
   // Auto-initialize with CITY if no saved state exists
@@ -57,13 +59,12 @@ export const GovernanceProvider: React.FC<{ children: ReactNode }> = ({ children
       setUsers(savedState.users);
       setComplaints(savedState.complaints);
       // Auto-set current user to LEVEL_1 if not set
-      if (!currentUser) {
-        const level1User = savedState.users.find(u => u.level === "LEVEL_1");
-        if (level1User) {
-          setCurrentUserState(level1User);
-        }
+      const level1User = savedState.users.find(u => u.level === "LEVEL_1");
+      if (level1User) {
+        setCurrentUserState(level1User);
       }
     }
+    setIsInitialized(true);
   }, []);
 
   const saveToLocalStorage = (state: {
@@ -73,7 +74,12 @@ export const GovernanceProvider: React.FC<{ children: ReactNode }> = ({ children
     users: User[];
     complaints: Complaint[];
   }) => {
-    saveState(state);
+    // Ensure governanceType is included and valid
+    const completeState = {
+      ...state,
+      governanceType: state.governanceType || governanceType || "CITY"
+    };
+    saveState(completeState);
   };
 
   const initializeGovernance = (type: GovernanceType) => {
@@ -102,7 +108,12 @@ export const GovernanceProvider: React.FC<{ children: ReactNode }> = ({ children
   const removeDepartment = (departmentId: string) => {
     const updated = departments.filter(d => d.id !== departmentId);
     setDepartments(updated);
-    saveToLocalStorage({ governanceType, departments: updated, areas, users, complaints });
+    const stateToSave = { governanceType, departments: updated, areas, users, complaints };
+    saveToLocalStorage(stateToSave);
+    // Optional: Add logging for debugging
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Department removed, saved state with', updated.length, 'departments');
+    }
   };
 
   const addArea = (area: Area) => {
@@ -114,7 +125,11 @@ export const GovernanceProvider: React.FC<{ children: ReactNode }> = ({ children
   const removeArea = (areaId: string) => {
     const updated = areas.filter(a => a.id !== areaId);
     setAreas(updated);
-    saveToLocalStorage({ governanceType, departments, areas: updated, users, complaints });
+    const stateToSave = { governanceType, departments, areas: updated, users, complaints };
+    saveToLocalStorage(stateToSave);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Area removed, saved state with', updated.length, 'areas');
+    }
   };
 
   const addUser = (user: User) => {
@@ -126,7 +141,11 @@ export const GovernanceProvider: React.FC<{ children: ReactNode }> = ({ children
   const removeUser = (userId: string) => {
     const updated = users.filter(u => u.id !== userId);
     setUsers(updated);
-    saveToLocalStorage({ governanceType, departments, areas, users: updated, complaints });
+    const stateToSave = { governanceType, departments, areas, users: updated, complaints };
+    saveToLocalStorage(stateToSave);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('User removed, saved state with', updated.length, 'users');
+    }
   };
 
   const updateUser = (userId: string, updates: Partial<User>) => {
@@ -192,6 +211,7 @@ export const GovernanceProvider: React.FC<{ children: ReactNode }> = ({ children
         users,
         complaints,
         setupComplete,
+        isInitialized,
         initializeGovernance,
         setCurrentUser,
         addDepartment,

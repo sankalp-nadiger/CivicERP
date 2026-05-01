@@ -170,7 +170,7 @@ export function ComplaintsTable({ complaints, onComplaintUpdate, enableContracto
   const [nowMs, setNowMs] = useState(() => Date.now());
   const { user } = useAuth();
   const { toast } = useToast();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const isContractorRole = String(user?.role || '').toLowerCase() === 'contractor';
 
   useEffect(() => {
@@ -214,6 +214,15 @@ export function ComplaintsTable({ complaints, onComplaintUpdate, enableContracto
     const key = getStatusI18nKey(status);
     if (!key) return status;
     return t(`complaintsTable.status.${key}`, status);
+  };
+
+  const getTranslatedCategoriesForComplaint = (complaint: Complaint): string[] => {
+    const selectedLanguage = String(i18n.resolvedLanguage || i18n.language || 'en').toLowerCase().split('-')[0];
+    const categoryTranslations =
+      complaint.categoryTranslations && typeof complaint.categoryTranslations === 'object'
+        ? (complaint.categoryTranslations as Record<string, string[]>)
+        : undefined;
+    return categoryTranslations?.[selectedLanguage] || complaint.issue_category || [];
   };
 
   const getStatusBadgeVariant = (status: string) => {
@@ -385,14 +394,14 @@ export function ComplaintsTable({ complaints, onComplaintUpdate, enableContracto
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
-                          {complaint.issue_category.slice(0, 2).map((cat, idx) => (
+                          {getTranslatedCategoriesForComplaint(complaint).slice(0, 2).map((cat, idx) => (
                             <Badge key={idx} variant="outline" className="text-xs">
                               {cat}
                             </Badge>
                           ))}
-                          {complaint.issue_category.length > 2 && (
+                          {getTranslatedCategoriesForComplaint(complaint).length > 2 && (
                             <Badge variant="outline" className="text-xs">
-                              +{complaint.issue_category.length - 2}
+                              +{getTranslatedCategoriesForComplaint(complaint).length - 2}
                             </Badge>
                           )}
                         </div>
@@ -528,7 +537,6 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, i
   const [translated, setTranslated] = useState<{
     title?: string;
     location?: string;
-    complaint?: string;
     summarized_complaint?: string;
   } | null>(null);
 
@@ -636,7 +644,6 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, i
       texts: {
         title: complaint.title || '',
         location: complaint.location || '',
-        complaint: complaint.complaint || '',
         summarized_complaint: complaint.summarized_complaint || '',
       },
     })
@@ -645,7 +652,6 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, i
           setTranslated({
             title: translations.title,
             location: translations.location,
-            complaint: translations.complaint,
             summarized_complaint: translations.summarized_complaint,
           });
         }
@@ -665,7 +671,22 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, i
     return () => {
       isCancelled = true;
     };
-  }, [complaint.title, complaint.location, complaint.complaint, complaint.summarized_complaint]);
+  }, [complaint.title, complaint.location, complaint.summarized_complaint]);
+
+  const selectedLanguage = String(i18n.resolvedLanguage || i18n.language || 'en').toLowerCase().split('-')[0];
+  const complaintTranslations =
+    complaint.translations && typeof complaint.translations === 'object'
+      ? (complaint.translations as Record<string, string>)
+      : undefined;
+  const translatedComplaintText =
+    complaintTranslations?.[selectedLanguage] || complaint.complaint || complaint.complaintOriginal || '';
+
+  const categoryTranslations =
+    complaint.categoryTranslations && typeof complaint.categoryTranslations === 'object'
+      ? (complaint.categoryTranslations as Record<string, string[]>)
+      : undefined;
+  const translatedCategories =
+    categoryTranslations?.[selectedLanguage] || issueCategories || [];
 
   // Subscribe to language changes for dynamic translation
   useEffect(() => {
@@ -769,7 +790,7 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, i
       <div>
         <label className="text-sm font-medium text-gray-700">{t('complaintsTable.fields.categories', 'Categories')}</label>
         <div className="flex flex-wrap gap-2 mt-2">
-          {issueCategories.map((cat, idx) => (
+          {translatedCategories.map((cat, idx) => (
             <Badge key={idx} variant="secondary">
               {cat}
             </Badge>
@@ -781,7 +802,7 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, i
       <div>
         <label className="text-sm font-medium text-gray-700">{t('complaintsTable.fields.fullComplaint', 'Full Complaint')}</label>
         <p className="text-sm mt-2 p-3 bg-gray-50 rounded border">
-          {translated?.complaint || complaint.complaint}
+          {translatedComplaintText}
         </p>
       </div>
 

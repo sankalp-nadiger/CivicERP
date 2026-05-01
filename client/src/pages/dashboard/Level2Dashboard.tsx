@@ -87,6 +87,7 @@ export default function Level2Dashboard() {
   const {
     governanceType,
     currentUser,
+    isInitialized,
     departments,
     users,
     complaints,
@@ -476,8 +477,19 @@ export default function Level2Dashboard() {
   ].filter(d => d.value > 0);
 
   // NOTE: Keep the render guard after all hooks to satisfy rules-of-hooks.
-  if (!currentUser || !governanceType) {
-    return null;
+  if (!isInitialized || !currentUser || !governanceType) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-gray-50">
+        <Card className="w-96">
+          <CardContent className="p-8 text-center">
+            <div className="flex justify-center mb-4">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+            <p className="text-gray-600">{t("common.loading", "Loading...")}</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (

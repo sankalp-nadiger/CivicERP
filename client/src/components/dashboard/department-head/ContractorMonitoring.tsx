@@ -2,7 +2,6 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -144,9 +143,6 @@ export const ContractorMonitoring: React.FC<{
 }> = ({ defaultDepartmentId, defaultDepartmentName }) => {
   const { toast } = useToast();
   const { t } = useTranslation();
-  const [status, setStatus] = React.useState<'ALL' | AvailabilityStatus>('ALL');
-  const [zone, setZone] = React.useState<string>('ALL');
-  const [ward, setWard] = React.useState<string>('ALL');
   const [departmentName, setDepartmentName] = React.useState<string>(defaultDepartmentName || '');
   const [showMap, setShowMap] = React.useState(false);
   const [createOpen, setCreateOpen] = React.useState(false);
@@ -167,12 +163,10 @@ export const ContractorMonitoring: React.FC<{
   }, [defaultDepartmentName]);
 
   const query = useQuery({
-    queryKey: ['contractors', { status, zone, ward, departmentName, defaultDepartmentId }],
+    queryKey: ['contractors', { departmentName, defaultDepartmentId }],
     queryFn: () =>
       listContractors({
-        status,
-        zone: zone === 'ALL' ? undefined : zone,
-        ward: ward === 'ALL' ? undefined : ward,
+        status: 'ALL',
         departmentId: defaultDepartmentId || undefined,
         departmentName: departmentName || undefined,
       }),
@@ -180,22 +174,6 @@ export const ContractorMonitoring: React.FC<{
   });
 
   const contractors = query.data || [];
-
-  const departments = React.useMemo(() => {
-    const values = contractors.map(c => String(c.departmentName || '').trim()).filter(Boolean);
-    if (defaultDepartmentName) values.push(String(defaultDepartmentName).trim());
-    return Array.from(new Set(values.filter(Boolean))).sort((a, b) => a.localeCompare(b));
-  }, [contractors, defaultDepartmentName]);
-
-  const zones = React.useMemo(() => {
-    const values = contractors.map(c => String(c.zone || '').trim()).filter(Boolean);
-    return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b));
-  }, [contractors]);
-
-  const wards = React.useMemo(() => {
-    const values = contractors.map(c => String(c.ward || '').trim()).filter(Boolean);
-    return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b));
-  }, [contractors]);
 
   const mapPoints = React.useMemo(
     () =>
@@ -413,83 +391,14 @@ export const ContractorMonitoring: React.FC<{
         </div>
       </div>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">{t('level2.contractors.filters.title', 'Filters')}</CardTitle>
-          <Button variant="outline" onClick={() => query.refetch()} disabled={query.isFetching}>
-            {query.isFetching ? t('level2.contractors.filters.refreshButton.refreshing', 'Refreshing…') : t('level2.contractors.filters.refreshButton.refresh', 'Refresh')}
-          </Button>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <div className="space-y-1">
-              <div className="text-xs text-gray-600">{t('level2.contractors.filters.availability', 'Availability')}</div>
-              <Select value={status} onValueChange={(v) => setStatus(v as any)}>
-                <SelectTrigger>
-                  <SelectValue placeholder={t('level2.contractors.filters.placeholder', 'All')} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">{t('level2.contractors.filters.placeholder', 'All')}</SelectItem>
-                  <SelectItem value="AVAILABLE">{t('level2.contractors.filters.available', 'Available')}</SelectItem>
-                  <SelectItem value="BUSY">{t('level2.contractors.filters.busy', 'Busy')}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <div className="text-xs text-gray-600">{t('level2.contractors.filters.department', 'Department')}</div>
-              {/* <Select
-                value={departmentName || 'ALL'}
-                onValueChange={(v) => setDepartmentName(v === 'ALL' ? '' : v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={t('level2.contractors.filters.placeholder', 'All')} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">{t('level2.contractors.filters.placeholder', 'All')}</SelectItem>
-                  {departments.map(d => (
-                    <SelectItem key={d} value={d}>{d}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select> */}
-            </div>
-
-            <div className="space-y-1">
-              <div className="text-xs text-gray-600">{t('level2.contractors.filters.zone', 'Zone')}</div>
-              {/* <Select value={zone} onValueChange={setZone}>
-                <SelectTrigger>
-                  <SelectValue placeholder={t('level2.contractors.filters.placeholder', 'All')} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">{t('level2.contractors.filters.placeholder', 'All')}</SelectItem>
-                  {zones.map(z => (
-                    <SelectItem key={z} value={z}>{z}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select> */}
-            </div>
-
-            <div className="space-y-1">
-              <div className="text-xs text-gray-600">{t('level2.contractors.filters.ward', 'Ward')}</div>
-              {/* <Select value={ward} onValueChange={setWard}>
-                <SelectTrigger>
-                  <SelectValue placeholder={t('level2.contractors.filters.placeholder', 'All')} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">{t('level2.contractors.filters.placeholder', 'All')}</SelectItem>
-                  {wards.map(w => (
-                    <SelectItem key={w} value={w}>{w}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select> */}
-            </div>
-          </div>
-
-          <div className="mt-3 text-xs text-gray-500">
-            {t('level2.contractors.filters.departmentLabel', 'Department: ')} <span className="font-medium text-gray-700">{departmentName || '—'}</span>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex items-center justify-between">
+        <div className="text-xs text-gray-600">
+          {t('level2.contractors.filters.departmentLabel', 'Department: ')} <span className="font-medium text-gray-700">{departmentName || '—'}</span>
+        </div>
+        <Button variant="outline" onClick={() => query.refetch()} disabled={query.isFetching}>
+          {query.isFetching ? t('level2.contractors.filters.refreshButton.refreshing', 'Refreshing…') : t('level2.contractors.filters.refreshButton.refresh', 'Refresh')}
+        </Button>
+      </div>
 
       {showMap && (
         <Card>

@@ -38,6 +38,7 @@ export default function Level3Dashboard() {
   const {
     governanceType,
     currentUser,
+    isInitialized,
     departments,
     areas,
     users,
@@ -104,8 +105,19 @@ export default function Level3Dashboard() {
     }
   }, [currentUser, users, setCurrentUser]);
 
-  if (!currentUser || !governanceType) {
-    return null;
+  if (!isInitialized || !currentUser || !governanceType) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-gray-50">
+        <Card className="w-96">
+          <CardContent className="p-8 text-center">
+            <div className="flex justify-center mb-4">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+            <p className="text-gray-600">{t("common.loading", "Loading...")}</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   const myArea = areas.find(a => a.id === currentUser.areaId);

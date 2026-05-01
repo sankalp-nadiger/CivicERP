@@ -278,6 +278,16 @@ export const loadOrCreateState = (governanceType?: GovernanceType) => {
     try {
       const parsed = JSON.parse(stored);
 
+      // Validate that parsed state has required fields
+      if (!parsed?.governanceType || !Array.isArray(parsed?.departments) || !Array.isArray(parsed?.areas)) {
+        console.warn("Stored state is invalid or incomplete, regenerating...");
+        // Stored state is invalid, regenerate
+        const typeToUse = governanceType || parsed?.governanceType || ("CITY" as GovernanceType);
+        const newState = generateCompleteState(typeToUse);
+        saveState(newState);
+        return newState;
+      }
+
       // Lightweight migration: expand CITY zones from 3 -> 5 if needed
       if (parsed?.governanceType === "CITY" && Array.isArray(parsed?.areas)) {
         const existingAreas = parsed.areas as Area[];
@@ -323,33 +333,62 @@ export const loadOrCreateState = (governanceType?: GovernanceType) => {
       }
 
       return parsed;
-    } catch {
-      console.error("Failed to parse stored state");
+    } catch (error) {
+      console.error("Failed to parse stored state, regenerating:", error);
+      // If parsing fails, regenerate fresh data
+      const typeToUse = governanceType || ("CITY" as GovernanceType);
+      const newState = generateCompleteState(typeToUse);
+      saveState(newState);
+      return newState;
     }
   }
 
   // Auto-initialize with CITY if no type provided and no stored state
   const typeToUse = governanceType || "CITY" as GovernanceType;
+  const state = generateCompleteState(typeToUse);
+  saveState(state);
+  return state;
+};
 
-  const areas = generateMockAreas(typeToUse);
-  const departments = generateMockDepartments(typeToUse);
-  const users = generateMockUsers(typeToUse, departments, areas);
-  const complaints = generateMockComplaints(typeToUse, areas, departments, users);
+const generateCompleteState = (governanceType: GovernanceType) => {
+  const areas = generateMockAreas(governanceType);
+  const departments = generateMockDepartments(governanceType);
+  const users = generateMockUsers(governanceType, departments, areas);
+  const complaints = generateMockComplaints(governanceType, areas, departments, users);
 
-  const state = {
-    governanceType: typeToUse,
+  return {
+    governanceType,
     departments,
     areas,
     users,
     complaints
   };
-
-  saveState(state);
-  return state;
 };
 
 export const saveState = (state: any) => {
-  localStorage.setItem(STORAGE_KEYS.STATE, JSON.stringify(state));
+  try {
+    if (!state || typeof state !== 'object') {
+      console.error("Cannot save invalid state:", state);
+      return;
+    }
+    
+    // Ensure state has all required fields before saving
+    if (!state.governanceType || !Array.isArray(state.departments) || !Array.isArray(state.areas) || !Array.isArray(state.users) || !Array.isArray(state.complaints)) {
+      console.error("State missing required fields, not saving:", state);
+      return;
+    }
+    
+    const serialized = JSON.stringify(state);
+    localStorage.setItem(STORAGE_KEYS.STATE, serialized);
+    
+    // Verify it was actually saved by reading it back
+    const verify = localStorage.getItem(STORAGE_KEYS.STATE);
+    if (!verify) {
+      console.error("Failed to verify state was saved to localStorage!");
+    }
+  } catch (error) {
+    console.error("Error saving state to localStorage:", error);
+  }
 };
 
 export const clearState = () => {

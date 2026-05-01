@@ -30,6 +30,10 @@ export interface Complaint {
   _id: string;
   title?: string;
   complaint: string;
+  complaintOriginal?: string;
+  originalLanguage?: 'en' | 'kn' | 'hi' | string;
+  translations?: Partial<Record<'en' | 'kn' | 'hi', string>> | Record<string, string>;
+  categoryTranslations?: Partial<Record<'en' | 'kn' | 'hi', string[]>> | Record<string, string[]>;
   summarized_complaint: string;
   complaint_proof?: string;
   issue_category: string[];
