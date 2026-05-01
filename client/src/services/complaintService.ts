@@ -314,7 +314,7 @@ export const uploadComplaintStatusProofImage = async (params: {
 // Contractor-only status update: WORK_STARTED -> IN_PROGRESS -> WORK_COMPLETED
 export const updateAssignedComplaintStatusForContractor = async (
   complaint_id: string,
-  status: 'WORK_STARTED' | 'IN_PROGRESS' | 'WORK_COMPLETED' | 'WORK_DONE',
+  status: 'WORK_STARTED' | 'IN_PROGRESS' | 'WORK_COMPLETED' | 'WORK_DONE' | 'REASSIGN_REQUIRED',
   comments?: string,
   statusProof?: string,
 ): Promise<Complaint> => {

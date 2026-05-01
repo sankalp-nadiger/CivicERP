@@ -837,7 +837,7 @@ class ComplaintController {
 
     // Contractor workflow update for assigned complaints.
     // PUT /complaints/assigned/status
-    // Body: { complaint_id: string, status: 'WORK_STARTED' | 'IN_PROGRESS' | 'WORK_COMPLETED' | 'WORK_DONE', comments?: string, statusProof?: string }
+    // Body: { complaint_id: string, status: 'WORK_STARTED' | 'IN_PROGRESS' | 'WORK_COMPLETED' | 'WORK_DONE' | 'REASSIGN_REQUIRED', comments?: string, statusProof?: string }
     async updateAssignedComplaintStatusForContractor(req: any, res: Response) {
         try {
             const tokenId = req.user?.id;
@@ -867,10 +867,10 @@ class ComplaintController {
                 return;
             }
 
-            const contractorAllowedStatuses = new Set(['WORK_STARTED', 'IN_PROGRESS', 'WORK_COMPLETED']);
+            const contractorAllowedStatuses = new Set(['WORK_STARTED', 'IN_PROGRESS', 'WORK_COMPLETED', 'REASSIGN_REQUIRED']);
             if (!contractorAllowedStatuses.has(requestedStatus)) {
                 res.status(403).json({
-                    message: 'Contractor can only update to WORK_STARTED, IN_PROGRESS, or WORK_COMPLETED.',
+                    message: 'Contractor can only update to WORK_STARTED, IN_PROGRESS, WORK_COMPLETED, or REASSIGN_REQUIRED.',
                 });
                 return;
             }
@@ -900,6 +900,17 @@ class ComplaintController {
             if (currentStatus === 'ASSIGNED' && assignmentRemaining !== null && assignmentRemaining <= 0) {
                 res.status(409).json({ message: 'Assignment acceptance window expired. Complaint requires reassignment.' });
                 return;
+            }
+
+            if (requestedStatus === 'REASSIGN_REQUIRED') {
+                if (currentStatus !== 'ASSIGNED') {
+                    res.status(409).json({ message: 'You can reject assignment only while complaint is in ASSIGNED status.' });
+                    return;
+                }
+                if (assignmentRemaining !== null && assignmentRemaining <= 0) {
+                    res.status(409).json({ message: 'Assignment acceptance window expired. Complaint is already eligible for reassignment.' });
+                    return;
+                }
             }
 
             const assignedId = String((complaint as any).assignedContractorId || '').trim();
@@ -937,13 +948,29 @@ class ComplaintController {
                 requestedStatus,
                 contractorName || String((contractor as any).email || 'Contractor'),
                 new Date().toISOString(),
-                typeof comments === 'string' && comments.trim() ? comments.trim() : `Updated to ${requestedStatus}`,
+                typeof comments === 'string' && comments.trim()
+                    ? comments.trim()
+                    : requestedStatus === 'REASSIGN_REQUIRED'
+                        ? 'Assignment rejected by contractor'
+                        : `Updated to ${requestedStatus}`,
             ].join('|'));
+
+            if (requestedStatus === 'REASSIGN_REQUIRED') {
+                (complaint as any).assignmentHistory = Array.isArray((complaint as any).assignmentHistory) ? (complaint as any).assignmentHistory : [];
+                (complaint as any).assignmentHistory.push({
+                    action: 'REJECTED_BY_CONTRACTOR',
+                    contractorId: assignedId || undefined,
+                    contractorName: assignedName || contractorName || undefined,
+                    assignedAt: (complaint as any).assignedAt || undefined,
+                    triggeredAt: new Date(),
+                    note: typeof comments === 'string' && comments.trim() ? comments.trim() : 'Contractor rejected assignment within acceptance SLA',
+                });
+            }
 
             await complaint.save();
 
             // Free the contractor once field work is completed.
-            if (requestedStatus === 'WORK_COMPLETED') {
+            if (requestedStatus === 'WORK_COMPLETED' || requestedStatus === 'REASSIGN_REQUIRED') {
                 await Contractor.updateOne(
                     { _id: contractorId },
                     {
@@ -954,6 +981,33 @@ class ComplaintController {
                         },
                     }
                 );
+            }
+
+            if (requestedStatus === 'REASSIGN_REQUIRED') {
+                const assignedById = String((complaint as any).assignedBy || '').trim();
+                if (assignedById) {
+                    const deptHead = await User.findById(assignedById).select('_id email role').lean();
+                    if (deptHead) {
+                        await createComplaintNotification({
+                            recipient: {
+                                userId: String((deptHead as any)._id || '').trim(),
+                                email: String((deptHead as any).email || '').trim(),
+                                role: String((deptHead as any).role || '').trim(),
+                            },
+                            type: 'complaint.assignment.rejected',
+                            title: 'Contractor rejected assignment',
+                            message: 'The assigned contractor rejected this complaint within the acceptance SLA. Please reassign it.',
+                            relatedComplaintId: complaintId,
+                            metadata: {
+                                contractorId: assignedId || contractorId || null,
+                                contractorName: assignedName || contractorName || null,
+                                status: 'REASSIGN_REQUIRED',
+                                rejectedAt: new Date(),
+                                reason: typeof comments === 'string' && comments.trim() ? comments.trim() : null,
+                            },
+                        });
+                    }
+                }
             }
 
             res.status(200).json({ message: 'Status updated successfully', complaint });

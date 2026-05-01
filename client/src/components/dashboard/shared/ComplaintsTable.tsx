@@ -271,7 +271,7 @@ export function ComplaintsTable({ complaints, onComplaintUpdate, enableContracto
 
       if (isContractorRole) {
         let statusProofUrl: string | undefined;
-        const contractorStatus = normalizedStatus === 'WORK_STARTED' || normalizedStatus === 'IN_PROGRESS' || normalizedStatus === 'WORK_COMPLETED'
+        const contractorStatus = normalizedStatus === 'WORK_STARTED' || normalizedStatus === 'IN_PROGRESS' || normalizedStatus === 'WORK_COMPLETED' || normalizedStatus === 'REASSIGN_REQUIRED'
           ? normalizedStatus
           : 'WORK_STARTED';
 
@@ -781,7 +781,7 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, i
           <p className="text-xs text-gray-500 mt-3">
             {assignmentSlaInfo.isExpired || isReassignmentRequired
               ? t('complaintsTable.assignmentSla.expiredHint', 'This complaint missed the 6-hour acceptance SLA and must be reassigned before contractors can continue.')
-              : t('complaintsTable.assignmentSla.activeHint', 'The contractor must click Start Work within 6 hours to accept the assignment.')}
+              : t('complaintsTable.assignmentSla.activeHint', 'The contractor must accept or reject this assignment within 6 hours.')}
           </p>
         </div>
       )}
@@ -908,9 +908,42 @@ function ComplaintDetailsView({ complaint, onUpdateStatus, onAssignContractor, i
       {/* Update Status Section */}
       <div className="border-t pt-6">
         <h3 className="font-semibold mb-4">{t('complaintsTable.updateStatus.title', 'Update Status')}</h3>
-        {isContractorRole && isReassignmentRequired ? (
+        {isContractorRole && (isReassignmentRequired || (currentStatusNormalized === 'ASSIGNED' && assignmentSlaInfo.isExpired)) ? (
           <div className="rounded border border-red-200 bg-red-50 p-4 text-sm text-red-800">
             {t('complaintsTable.assignmentSla.contractorBlocked', 'This complaint has expired and cannot be updated until the department head reassigns it.')}
+          </div>
+        ) : isContractorRole && currentStatusNormalized === 'ASSIGNED' ? (
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium text-gray-700">{t('complaintsTable.updateStatus.comments', 'Comments')}</label>
+              <Textarea
+                placeholder={t('complaintsTable.contractor.acceptRejectCommentPlaceholder', 'Optional reason or acceptance note...')}
+                value={comments}
+                onChange={(e) => setComments(e.target.value)}
+                className="mt-1"
+                rows={3}
+              />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <Button
+                onClick={() => onUpdateStatus(complaint, 'WORK_STARTED', comments, null)}
+                disabled={isUpdating}
+                className="w-full"
+              >
+                {isUpdating ? t('complaintsTable.updateStatus.updating', 'Updating...') : t('complaintsTable.contractor.acceptAssignment', 'Accept & Start Work')}
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => onUpdateStatus(complaint, 'REASSIGN_REQUIRED', comments, null)}
+                disabled={isUpdating}
+                className="w-full"
+              >
+                {isUpdating ? t('complaintsTable.updateStatus.updating', 'Updating...') : t('complaintsTable.contractor.rejectAssignment', 'Reject Assignment')}
+              </Button>
+            </div>
+            <p className="text-xs text-gray-500">
+              {t('complaintsTable.contractor.acceptRejectHint', 'Accept starts work immediately. Reject sends it back to the department head for reassignment.')}
+            </p>
           </div>
         ) : (
           <div className="space-y-4">
